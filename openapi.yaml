@@ -1,0 +1,498 @@
+openapi: 3.0.3
+info:
+  title: UOF Control Plane API
+  version: 0.1.0
+  description: MVP draft API for Universal Observability Framework control plane.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Agents
+  - name: Plugins
+  - name: Templates
+paths:
+  /api/v1/agents/register:
+    post:
+      tags: [Agents]
+      summary: Register an agent
+      operationId: registerAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegisterRequest'
+      responses:
+        '200':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRegisterResponse'
+  /api/v1/agents/{agentId}/heartbeat:
+    post:
+      tags: [Agents]
+      summary: Submit an agent heartbeat
+      operationId: agentHeartbeat
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentHeartbeatRequest'
+      responses:
+        '202':
+          description: Heartbeat accepted
+  /api/v1/agents/{agentId}/desired-state:
+    get:
+      tags: [Agents]
+      summary: Fetch desired state for an agent
+      operationId: getDesiredState
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Desired state found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesiredState'
+        '204':
+          description: No new desired state
+  /api/v1/agents/{agentId}/ack:
+    post:
+      tags: [Agents]
+      summary: Ack desired state generation
+      operationId: ackDesiredState
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckRequest'
+      responses:
+        '202':
+          description: Ack accepted
+  /api/v1/plugins:
+    get:
+      tags: [Plugins]
+      summary: List plugins
+      operationId: listPlugins
+      responses:
+        '200':
+          description: Plugin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plugin'
+    post:
+      tags: [Plugins]
+      summary: Create a plugin record
+      operationId: createPlugin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePluginRequest'
+      responses:
+        '201':
+          description: Plugin created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plugin'
+  /api/v1/plugins/{pluginId}:
+    get:
+      tags: [Plugins]
+      summary: Get plugin detail
+      operationId: getPlugin
+      parameters:
+        - $ref: '#/components/parameters/PluginId'
+      responses:
+        '200':
+          description: Plugin detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginDetail'
+  /api/v1/plugins/{pluginId}/versions:
+    post:
+      tags: [Plugins]
+      summary: Upload a plugin version metadata record
+      operationId: createPluginVersion
+      parameters:
+        - $ref: '#/components/parameters/PluginId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePluginVersionRequest'
+      responses:
+        '201':
+          description: Plugin version created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginVersion'
+  /api/v1/plugins/{pluginId}/release:
+    post:
+      tags: [Plugins]
+      summary: Publish or promote a plugin version
+      operationId: releasePluginVersion
+      parameters:
+        - $ref: '#/components/parameters/PluginId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleasePluginRequest'
+      responses:
+        '202':
+          description: Release accepted
+  /api/v1/templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      operationId: listTemplates
+      responses:
+        '200':
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+    post:
+      tags: [Templates]
+      summary: Create a template record
+      operationId: createTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+  /api/v1/template-bindings:
+    post:
+      tags: [Templates]
+      summary: Create a template binding
+      operationId: createTemplateBinding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateBindingRequest'
+      responses:
+        '201':
+          description: Binding created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateBinding'
+  /api/v1/template-bindings/{bindingId}:
+    delete:
+      tags: [Templates]
+      summary: Delete a template binding
+      operationId: deleteTemplateBinding
+      parameters:
+        - $ref: '#/components/parameters/BindingId'
+      responses:
+        '204':
+          description: Binding deleted
+components:
+  parameters:
+    AgentId:
+      name: agentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PluginId:
+      name: pluginId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BindingId:
+      name: bindingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    AgentRegisterRequest:
+      type: object
+      required: [hostname, kernel_version, arch, capabilities]
+      properties:
+        hostname:
+          type: string
+        node_name:
+          type: string
+        ip:
+          type: string
+        kernel_version:
+          type: string
+        os_release:
+          type: string
+        arch:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+    AgentRegisterResponse:
+      type: object
+      required: [agent_id, status]
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        poll_interval_seconds:
+          type: integer
+    AgentHeartbeatRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+        health_summary:
+          type: object
+          additionalProperties: true
+        probe_status:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        plugin_status:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    DesiredState:
+      type: object
+      required: [generation, plugins, templates, sampling, exporter]
+      properties:
+        generation:
+          type: integer
+          format: int64
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginActivation'
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateBinding'
+        sampling:
+          type: object
+          additionalProperties: true
+        exporter:
+          type: object
+          additionalProperties: true
+    AckRequest:
+      type: object
+      required: [generation, status]
+      properties:
+        generation:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [applied, failed]
+        message:
+          type: string
+    Plugin:
+      type: object
+      required: [id, name, kind, publisher, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+        publisher:
+          type: string
+        status:
+          type: string
+    PluginDetail:
+      allOf:
+        - $ref: '#/components/schemas/Plugin'
+        - type: object
+          properties:
+            default_version_id:
+              type: string
+              format: uuid
+            versions:
+              type: array
+              items:
+                $ref: '#/components/schemas/PluginVersion'
+    PluginVersion:
+      type: object
+      required: [id, plugin_id, version, digest, oci_ref, signature_status, published]
+      properties:
+        id:
+          type: string
+          format: uuid
+        plugin_id:
+          type: string
+          format: uuid
+        version:
+          type: string
+        digest:
+          type: string
+        oci_ref:
+          type: string
+        signature_status:
+          type: string
+        published:
+          type: boolean
+    CreatePluginRequest:
+      type: object
+      required: [name, kind, publisher]
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+        publisher:
+          type: string
+    CreatePluginVersionRequest:
+      type: object
+      required: [version, digest, oci_ref, manifest]
+      properties:
+        version:
+          type: string
+        digest:
+          type: string
+        oci_ref:
+          type: string
+        manifest:
+          type: object
+          additionalProperties: true
+        compat_matrix:
+          type: object
+          additionalProperties: true
+    ReleasePluginRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+        make_default:
+          type: boolean
+    Template:
+      type: object
+      required: [id, plugin_id, name, version, target_software, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        plugin_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        target_software:
+          type: string
+        scenario:
+          type: string
+        status:
+          type: string
+    CreateTemplateRequest:
+      type: object
+      required: [plugin_id, name, version, target_software, manifest]
+      properties:
+        plugin_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        version:
+          type: string
+        target_software:
+          type: string
+        scenario:
+          type: string
+        manifest:
+          type: object
+          additionalProperties: true
+    TemplateBinding:
+      type: object
+      required: [id, template_id, selector, target, policy, enabled]
+      properties:
+        id:
+          type: string
+          format: uuid
+        template_id:
+          type: string
+          format: uuid
+        selector:
+          type: object
+          additionalProperties: true
+        target:
+          type: object
+          additionalProperties: true
+        policy:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+    CreateTemplateBindingRequest:
+      type: object
+      required: [template_id, selector, target]
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        selector:
+          type: object
+          additionalProperties: true
+        target:
+          type: object
+          additionalProperties: true
+        policy:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+    PluginActivation:
+      type: object
+      required: [plugin_id, version, action]
+      properties:
+        plugin_id:
+          type: string
+          format: uuid
+        version:
+          type: string
+        action:
+          type: string
+          enum: [install, enable, disable, uninstall]

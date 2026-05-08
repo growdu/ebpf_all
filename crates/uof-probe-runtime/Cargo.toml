@@ -1,0 +1,11 @@
+[package]
+name = "uof-probe-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+uof-common = { path = "../uof-common" }

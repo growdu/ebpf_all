@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "crates/uof-agent",
+    "crates/uof-cli",
+    "crates/uof-common",
+    "crates/uof-control-api",
+    "crates/uof-control-plane",
+    "crates/uof-ebpf",
+    "crates/uof-model",
+    "crates/uof-probe-runtime",
+]
+default-members = [
+    "crates/uof-cli",
+    "crates/uof-control-api",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+authors = ["UOF Contributors"]
+
+[workspace.dependencies]
+anyhow = "1"
+async-trait = "0.1"
+axum = { version = "0.7", features = ["macros"] }
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["serde", "v4"] }
