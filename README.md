@@ -276,9 +276,9 @@ Agent Admin API：
 
 ## 设计文档
 
-- [product.md](./product.md) — 产品需求文档
-- [overview_design.md](./overview_design.md) — 概要设计（技术选型、架构）
-- [detailed_design.md](./detailed_design.md) — 详细设计（模块划分、数据流、接口定义）
+- [product.md](./docs/product.md) — 产品需求文档
+- [overview_design.md](./docs/overview_design.md) — 概要设计（技术选型、架构）
+- [detailed_design.md](./docs/detailed_design.md) — 详细设计（模块划分、数据流、接口定义）
 
 ## License
 

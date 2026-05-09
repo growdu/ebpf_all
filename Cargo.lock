@@ -1837,11 +1837,13 @@ dependencies = [
 name = "uof-probe-runtime"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "log",
  "serde",
  "thiserror 1.0.69",
  "tokio",
  "uof-common",
+ "uof-ebpf",
 ]
 
 [[package]]
