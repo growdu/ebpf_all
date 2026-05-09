@@ -16,6 +16,8 @@ use uof_model::{
 #[derive(Debug, Clone)]
 pub struct AppState {
     inner: Arc<RwLock<StateStore>>,
+    /// Base URL of this control plane (used to construct artifact download URLs).
+    base_url: String,
 }
 
 #[derive(Debug, Default)]
@@ -42,6 +44,12 @@ struct PluginRecord {
 
 impl Default for AppState {
     fn default() -> Self {
+        Self::new("http://127.0.0.1:8080".to_string())
+    }
+}
+
+impl AppState {
+    pub fn new(base_url: String) -> Self {
         let plugin_id = Uuid::new_v4();
         let default_plugin = Plugin {
             id: plugin_id,
@@ -67,11 +75,14 @@ impl Default for AppState {
 
         Self {
             inner: Arc::new(RwLock::new(store)),
+            base_url,
         }
     }
-}
 
-impl AppState {
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub async fn register_agent(&self, request: AgentRegisterRequest) -> AgentRegisterResponse {
         let mut state = self.inner.write().await;
         let agent_id = Uuid::new_v4();
@@ -84,6 +95,8 @@ impl AppState {
                     plugin_id,
                     version: "0.1.0".to_string(),
                     action: PluginAction::Enable,
+                    artifact_url: None,
+                    artifact_digest: None,
                 })
                 .into_iter()
                 .collect(),
@@ -211,6 +224,16 @@ impl AppState {
         Some(version)
     }
 
+
+    /// Look up a plugin version by its version string.
+    pub async fn find_version_by_string(&self, plugin_id: Uuid, version: &str) -> Option<(Uuid, String)> {
+        let state = self.inner.read().await;
+        let record = state.plugins.get(&plugin_id)?;
+        record.versions.iter()
+            .find(|v| v.version == version)
+            .map(|v| (v.id, v.version.clone()))
+    }
+
     pub async fn release_plugin_version(
         &self,
         plugin_id: Uuid,
@@ -234,6 +257,58 @@ impl AppState {
         }
 
         released_version_id.is_some()
+    }
+
+    /// Update desired_state for all agents to include the artifact_url for the newly released version.
+    pub async fn notify_agents_plugin_released(
+        &self,
+        plugin_id: Uuid,
+        version_id: Uuid,
+        version_string: String,
+    ) {
+        let artifact_url = self.plugin_artifact_url(plugin_id, version_id).await;
+        let mut state = self.inner.write().await;
+        for agent in state.agents.values_mut() {
+            // Find and update the matching plugin in desired_state
+            for plugin in &mut agent.desired_state.plugins {
+                if plugin.plugin_id == plugin_id {
+                    plugin.artifact_url = artifact_url.clone();
+                    plugin.version = version_string.clone();
+                    agent.desired_state.generation += 1;
+                    tracing::info!(plugin_id = %plugin_id, generation = agent.desired_state.generation, "bumped desired_state generation");
+                }
+            }
+        }
+    }
+
+    /// Build the artifact download URL for a specific plugin version.
+    pub async fn plugin_artifact_url(
+        &self,
+        plugin_id: Uuid,
+        version_id: Uuid,
+    ) -> Option<String> {
+        let state = self.inner.read().await;
+        let record = state.plugins.get(&plugin_id)?;
+        let version = record.versions.iter().find(|v| v.id == version_id)?;
+        // If oci_ref is already an HTTP URL, return it directly;
+        // otherwise construct the control-plane proxy URL.
+        if version.oci_ref.starts_with("http://") || version.oci_ref.starts_with("https://") {
+            Some(version.oci_ref.clone())
+        } else {
+            // Control plane will proxy the pull request to the OCI registry
+            Some(format!(
+                "{}/api/v1/plugins/{}/versions/{}/artifact",
+                self.base_url, plugin_id, version_id
+            ))
+        }
+    }
+
+    /// Get the oci_ref stored for a specific plugin version.
+    pub async fn get_version_oci_ref(&self, plugin_id: Uuid, version_id: Uuid) -> Option<String> {
+        let state = self.inner.read().await;
+        let record = state.plugins.get(&plugin_id)?;
+        let version = record.versions.iter().find(|v| v.id == version_id)?;
+        Some(version.oci_ref.clone())
     }
 
     pub async fn list_templates(&self) -> Vec<Template> {

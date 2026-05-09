@@ -9,13 +9,17 @@ authors.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+flate2.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 uof-common = { path = "../uof-common" }
 uof-model = { path = "../uof-model" }
+uof-plugin-sdk = { path = "../uof-plugin-sdk" }
 uof-probe-runtime = { path = "../uof-probe-runtime" }

@@ -6,6 +6,18 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-serde.workspace = true
+# aya = { version = "0.13", features = ["tokio"] }
+# aya-log = "0.2"
+log = "0.4"
+serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
 uof-common = { path = "../uof-common" }
+
+[dev-dependencies]
+# [dev-dependencies]
+# tokio-test = "1"
+
+# Real eBPF loading (requires aya 0.13+):
+# tokio = { workspace = true, features = ["full"] }
+# aya = { version = "0.13", features = ["tokio"] }

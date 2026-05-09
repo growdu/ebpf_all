@@ -1,23 +1,19 @@
-mod routes;
-
-use axum::Router;
-use tower_http::trace::TraceLayer;
-use uof_common::{telemetry::init_tracing, AppConfig};
+use uof_control_api::routes::router;
 use uof_control_plane::state::AppState;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    init_tracing();
+async fn main() {
+    let bind_addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+    let base_url = std::env::var("CONTROL_PLANE_URL")
+        .unwrap_or_else(|_| format!("http://{}", bind_addr));
 
-    let config = AppConfig::default();
-    let state = AppState::default();
+    let state = AppState::new(base_url);
 
-    let app = Router::new()
-        .merge(routes::router(state))
-        .layer(TraceLayer::new_for_http());
+    let app = router(state);
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
+    tracing::info!(addr = %bind_addr, "control plane listening");
 
-    let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
-    tracing::info!("{} listening on {}", config.service_name, config.bind_addr);
-    axum::serve(listener, app).await?;
-    Ok(())
+    axum::serve(listener, app)
+        .await
+        .unwrap();
 }

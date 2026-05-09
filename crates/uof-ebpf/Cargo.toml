@@ -6,5 +6,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 
+# Note: Real eBPF programs require aya-ebpf + Linux headers.
+# For cross-compilation build scripts, add:
+#   aya-ebpf = "0.1"
+# to the build-dependencies of the final probe package.

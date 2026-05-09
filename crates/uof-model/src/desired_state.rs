@@ -26,11 +26,27 @@ pub enum AckStatus {
     Failed,
 }
 
+/// Request for a plugin artifact — sent by an agent to the control plane
+/// to fetch the raw plugin tarball bytes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginArtifactRequest {
+    pub plugin_id: Uuid,
+    pub version: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginActivation {
     pub plugin_id: Uuid,
     pub version: String,
     pub action: PluginAction,
+    /// Full URL where the agent can download the plugin tarball artifact.
+    /// Present when action is Install or Enable; absent for Disable/Uninstall.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_url: Option<String>,
+    /// Expected SHA-256 digest of the artifact (hex-encoded).
+    /// The agent verifies this after download.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artifact_digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,4 +57,3 @@ pub enum PluginAction {
     Disable,
     Uninstall,
 }
-

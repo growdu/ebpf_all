@@ -117,6 +117,32 @@ impl ControlPlaneClient {
     }
 }
 
+    /// Download a plugin artifact from the control plane for the given plugin_id.
+    /// Returns raw tar.gz bytes.
+    pub async fn download_plugin_artifact(
+        &self,
+        agent_id: Uuid,
+        plugin_id: Uuid,
+        version: &str,
+    ) -> anyhow::Result<Vec<u8>> {
+        let url = format!(
+            "{}/api/v1/agents/{agent_id}/plugins/{plugin_id}/artifact?version={version}",
+            self.base_url
+        );
+
+        tracing::info!(url, "downloading plugin artifact from control plane");
+        let resp = self
+            .http
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let bytes = resp.bytes().await?.to_vec();
+        tracing::info!(url, bytes = bytes.len(), "plugin artifact downloaded");
+        Ok(bytes)
+    }
+
 fn hostname() -> String {
     std::env::var("HOSTNAME")
         .or_else(|_| std::env::var("COMPUTERNAME"))

@@ -1,19 +1,27 @@
-use serde::{Deserialize, Serialize};
+//! UOF eBPF probe library.
+//!
+//! Provides the canonical event type definitions used by both the kernel-space
+//! eBPF programs and the user-space [`ProbeRuntime`](crate::ProbeRuntime).
+//!
+//! The kernel-space probe programs themselves (kprobe, uprobe, tracepoint
+//! handlers) are compiled separately with `aya-ebpf` + `bpfel-unknown-none`
+//! target when the kernel headers are available.
+//!
+//! # Probe categories (planned)
+//!
+//! - **syscall** – entry/exit for selected syscalls (read, write, open, etc.)
+//! - **io**       – block I/O request start/complete
+//! - **sched**    – task switch, wakeup, fork, exit
+//! - **net**      – socket send/recv events
+//! - **lock**     – spinlock acquire/release (via tracepoints)
+//! - **uprobe**   – user-space function entry (dynamic, loaded per plugin)
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[repr(C)]
-pub struct RawEventHeader {
-    pub ts_ns: u64,
-    pub event_type: u16,
-    pub version: u16,
-    pub cpu_id: u32,
-    pub pid: u32,
-    pub tid: u32,
-    pub uid: u32,
-    pub gid: u32,
-    pub cgroup_id: u64,
-    pub mount_ns: u64,
-    pub payload_len: u32,
-}
+pub mod event;
+pub mod maps;
+pub mod probes;
 
-pub const EVENT_TYPE_SYSCALL: u16 = 1;
+pub use event::{
+    EventHeader, IoEvent, LockEvent, NetEvent, SchedEvent, SyscallEvent,
+    UprobeEvent, EVENT_TYPE_IO, EVENT_TYPE_LOCK, EVENT_TYPE_NET, EVENT_TYPE_SCHED,
+    EVENT_TYPE_SYSCALL, EVENT_TYPE_UPROBE,
+};
