@@ -18,10 +18,21 @@
 
 pub mod event;
 pub mod maps;
+#[cfg(feature = "probes")]
 pub mod probes;
 
 pub use event::{
     EventHeader, IoEvent, LockEvent, NetEvent, SchedEvent, SyscallEvent,
     UprobeEvent, EVENT_TYPE_IO, EVENT_TYPE_LOCK, EVENT_TYPE_NET, EVENT_TYPE_SCHED,
     EVENT_TYPE_SYSCALL, EVENT_TYPE_UPROBE,
+};
+
+#[cfg(feature = "probes")]
+pub use probes::{
+    handle_block_rq_complete, handle_block_rq_insert, handle_lock_acquire,
+    handle_lock_release, handle_sock_recv, handle_sock_send, handle_sched_process_exit,
+    handle_sched_process_fork, handle_sched_switch, handle_sched_wakeup,
+    handle_close_entry, handle_close_exit, handle_open_entry, handle_open_exit,
+    handle_read_entry, handle_read_exit, handle_write_entry, handle_write_exit,
+    handle_uprobe, handle_uretprobe,
 };
