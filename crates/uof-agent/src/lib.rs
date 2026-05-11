@@ -2,6 +2,7 @@ pub mod admin_api;
 pub mod bootstrap;
 pub mod config;
 pub mod control_plane_client;
+pub mod event_pipeline;
 pub mod health;
 pub mod probe_manager;
 

@@ -6,6 +6,7 @@ members = [
     "crates/uof-control-api",
     "crates/uof-control-plane",
     "crates/uof-ebpf",
+    "crates/uof-exporter-otlp",
     "crates/uof-model",
     "crates/uof-plugin-sdk",
     "crates/uof-probe-runtime",
