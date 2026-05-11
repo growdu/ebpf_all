@@ -34,7 +34,7 @@ pub trait ProbeManager: Send + Sync {
 pub struct InMemoryProbeManager {
     runtime: Arc<RwLock<ProbeRuntime>>,
     plugin_index: Arc<RwLock<BTreeMap<String, Vec<String>>>>,
-    artifact_dirs: Arc<RwLock<BTreeMap<String, PathBuf>>>>,
+    artifact_dirs: Arc<RwLock<BTreeMap<String, PathBuf>>>,
 }
 
 impl InMemoryProbeManager {

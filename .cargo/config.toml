@@ -1,8 +1,5 @@
-[build]
-build_std = ["core", "compiler_builtins", "alloc"]
-
-[unstable]
-build-std = true
-
 [target.bpfel-unknown-none]
 linker = "clang"
+
+[target.bpfel-unknown-none.unstable]
+build-std = ["core", "compiler_builtins", "alloc"]

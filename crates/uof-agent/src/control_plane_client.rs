@@ -24,7 +24,7 @@ impl ControlPlaneClient {
 
     pub async fn register_agent(&self, config: &AgentConfig) -> anyhow::Result<AgentRegisterResponse> {
         let request = AgentRegisterRequest {
-            hostname: hostname(),
+            hostname: Self::hostname(),
             node_name: None,
             ip: None,
             kernel_version: std::env::consts::OS.to_string(),
@@ -115,7 +115,6 @@ impl ControlPlaneClient {
 
         Ok(())
     }
-}
 
     /// Download a plugin artifact from the control plane for the given plugin_id.
     /// Returns raw tar.gz bytes.
@@ -143,8 +142,9 @@ impl ControlPlaneClient {
         Ok(bytes)
     }
 
-fn hostname() -> String {
-    std::env::var("HOSTNAME")
-        .or_else(|_| std::env::var("COMPUTERNAME"))
-        .unwrap_or_else(|_| "unknown-host".to_string())
+    fn hostname() -> String {
+        std::env::var("HOSTNAME")
+            .or_else(|_| std::env::var("COMPUTERNAME"))
+            .unwrap_or_else(|_| "unknown-host".to_string())
+    }
 }
