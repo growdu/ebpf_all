@@ -48,6 +48,7 @@ impl RingBufferConsumer {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn decode(&self, data: &[u8]) -> ProbeEvent {
         if data.len() < 52 {
             return ProbeEvent::Unknown;

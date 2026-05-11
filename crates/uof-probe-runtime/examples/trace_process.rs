@@ -13,10 +13,9 @@
 
 use std::sync::Arc;
 use uof_probe_runtime::{
-    ProcessDiscovery, SymbolResolver, ProbeLoader, RingBufferConsumer,
+    EventCallback, ProcessDiscovery, ProbeEvent, ProbeLoader, RingBufferConsumer,
+    SymbolResolver,
 };
-use uof_probe_runtime::ring_buffer_consumer::EventCallback;
-use uof_probe_runtime::runtime::ProbeEvent;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

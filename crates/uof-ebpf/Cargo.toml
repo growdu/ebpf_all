@@ -5,10 +5,11 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+# Enable this feature only when building for bpfel-unknown-none target
+# with `cargo build --target bpfel-unknown-none --features uof-ebpf/probes`
+probes = []
+
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-
-# Note: Real eBPF programs require aya-ebpf + Linux headers.
-# For cross-compilation build scripts, add:
-#   aya-ebpf = "0.1"
-# to the build-dependencies of the final probe package.

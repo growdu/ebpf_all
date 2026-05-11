@@ -91,11 +91,14 @@ pub struct ProbeCapabilityResult {
 /// In-memory probe registry and lifecycle manager.
 #[derive(Default)]
 pub struct ProbeRuntime {
+    #[allow(dead_code)]
     probes: Vec<RegisteredProbe>,
     event_handlers: Vec<Box<dyn EventHandler>>,
+    #[allow(dead_code)]
     state: RuntimeState,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 enum RuntimeState {
     #[default]
@@ -227,6 +230,7 @@ impl ProbeRuntime {
 // ---------------------------------------------------------------------------
 
 /// Check which probes the current kernel supports.
+#[allow(dead_code)]
 pub async fn check_capabilities() -> Vec<ProbeCapabilityResult> {
     use std::os::unix::fs::MetadataExt;
 
