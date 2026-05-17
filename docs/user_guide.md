@@ -34,7 +34,20 @@ UOF (Universal Observability Framework) 是一个基于 eBPF + OpenTelemetry 的
 - Rust 1.75+ (仅开发/构建需要)
 - PostgreSQL (控制面元数据存储，可选)
 
-### 安装构建
+### 快速启动 (Docker Compose)
+
+```bash
+# 一键启动所有服务
+docker-compose up -d
+
+# 访问 Web UI
+open http://localhost
+
+# 访问 Control Plane API
+curl http://localhost:19999/healthz
+```
+
+### 手动构建
 
 ```bash
 # 克隆项目
@@ -51,11 +64,11 @@ cargo build --release
 ### 启动 Control Plane
 
 ```bash
-# 使用默认配置启动 (监听 127.0.0.1:8080)
+# 使用默认配置启动 (监听 127.0.0.1:19999)
 cargo run -p uof-control-api
 
 # 指定绑定地址
-UOF_BIND_ADDR=0.0.0.0:8080 cargo run -p uof-control-api
+UOF_BIND_ADDR=0.0.0.0:19999 cargo run -p uof-control-api
 ```
 
 ### 启动 Agent
@@ -65,8 +78,19 @@ UOF_BIND_ADDR=0.0.0.0:8080 cargo run -p uof-control-api
 cargo run -p uof-agent
 
 # 启动 agent (独立模式，不连接 control plane)
-UOF_CONTROL_PLANE_ENDPOINT=http://127.0.0.1:8080 cargo run -p uof-agent
+UOF_CONTROL_PLANE_ENDPOINT=http://127.0.0.1:19999 cargo run -p uof-agent
 ```
+
+### Web 控制台
+
+UOF 提供 Web 控制台，访问地址：`http://localhost`
+
+功能：
+- 查看代理节点状态
+- 查看探针列表
+- 管理插件
+- 查看事件管道
+- 实时事件流监控
 
 ### 使用 CLI
 
@@ -87,7 +111,7 @@ cargo run -p uof-cli -- --help
 Agent 启动时会自动向 Control Plane 注册：
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/agents/register \
+curl -X POST http://localhost:19999/api/v1/agents/register \
   -H "Content-Type: application/json" \
   -d '{
     "hostname": "node-01",
@@ -101,7 +125,7 @@ curl -X POST http://localhost:8080/api/v1/agents/register \
 Agent 定期发送心跳保持连接：
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/agents/{agent_id}/heartbeat \
+curl -X POST http://localhost:19999/api/v1/agents/{agent_id}/heartbeat \
   -H "Content-Type: application/json" \
   -d '{
     "status": "running",
@@ -115,7 +139,7 @@ curl -X POST http://localhost:8080/api/v1/agents/{agent_id}/heartbeat \
 ### 拉取期望配置
 
 ```bash
-curl http://localhost:8080/api/v1/agents/{agent_id}/desired-state
+curl http://localhost:19999/api/v1/agents/{agent_id}/desired-state
 ```
 
 响应示例：
@@ -146,7 +170,7 @@ curl -X POST http://localhost:8080/api/v1/agents/{agent_id}/ack \
 ### 查看可用插件
 
 ```bash
-curl http://localhost:8080/api/v1/plugins
+curl http://localhost:19999/api/v1/plugins
 ```
 
 ### 上传插件
@@ -180,7 +204,7 @@ cargo run -p uof-cli -- plugin pull \
 或通过 API 拉取：
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/plugins/pull \
+curl -X POST http://localhost:19999/api/v1/plugins/pull \
   -H "Content-Type: application/json" \
   -d '{
     "registry": "ghcr.io",
@@ -224,13 +248,13 @@ resource_budget:
 ### 查看可用模板
 
 ```bash
-curl http://localhost:8080/api/v1/templates
+curl http://localhost:19999/api/v1/templates
 ```
 
 ### 创建模板绑定
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/template-bindings \
+curl -X POST http://localhost:19999/api/v1/template-bindings \
   -H "Content-Type: application/json" \
   -d '{
     "template_id": "dba-diagnostic-v1",
@@ -250,7 +274,7 @@ curl -X POST http://localhost:8080/api/v1/template-bindings \
 ### 删除模板绑定
 
 ```bash
-curl -X DELETE http://localhost:8080/api/v1/template-bindings/{binding_id}
+curl -X DELETE http://localhost:19999/api/v1/template-bindings/{binding_id}
 ```
 
 ---
@@ -276,9 +300,9 @@ UOF 集成 Grafana，提供以下默认 Dashboard：
 
 ```bash
 # Control Plane 健康检查
-curl http://localhost:8080/healthz
+curl http://localhost:19999/healthz
 
-# Agent 健康检查
+# Agent 健康检查 (Agent 默认端口 8081)
 curl http://localhost:8081/healthz
 
 # Agent 就绪检查
@@ -287,6 +311,19 @@ curl http://localhost:8081/readyz
 # 探针列表
 curl http://localhost:8081/debug/probes
 ```
+
+### Web 控制台功能
+
+访问 `http://localhost` 打开 Web 控制台，提供以下功能：
+
+| 功能 | 说明 |
+|------|------|
+| 控制台主页 | 显示系统概览、代理状态、探针状态、事件吞吐量图表 |
+| 代理节点 | 查看已注册代理列表、状态、部署新代理 |
+| 探针列表 | 查看运行中的探针详情、调用频率、延迟统计 |
+| 插件管理 | 查看已安装插件、安装新插件 |
+| OTLP 导出 | 配置 OTLP 导出端点、查看导出状态 |
+| 事件流 | 实时查看事件管道数据流向 |
 
 ---
 
@@ -321,7 +358,7 @@ UOF 提供以下默认告警规则：
 ### Q: Agent 无法注册到 Control Plane
 
 检查以下内容：
-1. 网络连通性：`curl http://control-plane:8080/healthz`
+1. 网络连通性：`curl http://localhost:19999/healthz`
 2. Control Plane 是否正常运行
 3. Agent 配置的 `UOF_CONTROL_PLANE_ENDPOINT` 是否正确
 
