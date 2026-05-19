@@ -6,6 +6,7 @@ members = [
     "crates/uof-control-api",
     "crates/uof-control-plane",
     "crates/uof-ebpf",
+    "crates/uof-ebpf-programs",
     "crates/uof-exporter-otlp",
     "crates/uof-model",
     "crates/uof-plugin-sdk",
@@ -28,6 +29,7 @@ authors = ["UOF Contributors"]
 anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.7", features = ["macros"] }
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 flate2 = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -37,6 +39,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 serde_yaml_ng = "0.10"
 sha2 = "0.10"
+sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono"] }
 tempfile = "3"
 tar = "0.4"
 thiserror = "1"

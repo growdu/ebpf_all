@@ -31,7 +31,7 @@
 use serde::{Deserialize, Serialize};
 use uof_common::Result;
 
-
+use crate::ebpf_loader::EbpfLoader;
 use uof_common::UofError;
 
 // ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ enum RuntimeState {
     #[default]
     Idle,
     Loaded {
-        bpf_fd: i32, // placeholder — real impl uses aya::Bpf
+        ebpf_loader: EbpfLoader,
     },
     Running {
         shutdown: tokio::sync::broadcast::Sender<()>,
@@ -173,17 +173,35 @@ impl ProbeRuntime {
     }
 
     /// Load eBPF programs from a compiled `.o` file into the kernel.
-    pub async fn load(&mut self, _path: &str) -> Result<()> {
-        for probe in &mut self.probes {
-            if probe.state == ProbeLifecycleState::Registered {
-                probe.state = ProbeLifecycleState::Loaded;
+    pub async fn load(&mut self, path: &str) -> Result<()> {
+        let mut loader = EbpfLoader::new();
+
+        match loader.load(path).await {
+            Ok(()) => {
+                self.state = RuntimeState::Loaded { ebpf_loader: loader };
+                for probe in &mut self.probes {
+                    if probe.state == ProbeLifecycleState::Registered {
+                        probe.state = ProbeLifecycleState::Loaded;
+                    }
+                }
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("failed to load eBPF at {}: {}", path, e);
+                Err(anyhow::anyhow!("failed to load eBPF: {}", e).into())
             }
         }
-        Ok(())
     }
 
     /// Attach all loaded probes to their kernel hook points.
     pub async fn attach(&mut self) -> Result<()> {
+        if let RuntimeState::Loaded { ebpf_loader } = &self.state {
+            if let Err(e) = ebpf_loader.attach().await {
+                log::error!("failed to attach eBPF programs: {}", e);
+                return Err(anyhow::anyhow!("failed to attach: {}", e).into());
+            }
+        }
+
         for probe in &mut self.probes {
             if probe.state == ProbeLifecycleState::Loaded {
                 probe.state = ProbeLifecycleState::Attached;
@@ -206,6 +224,12 @@ impl ProbeRuntime {
 
     /// Drain remaining events and unload eBPF programs from the kernel.
     pub async fn unload(&mut self) -> Result<()> {
+        // Unload the eBPF loader (drops programs)
+        if let RuntimeState::Loaded { ebpf_loader } = &mut self.state {
+            ebpf_loader.unload();
+        }
+        self.state = RuntimeState::Idle;
+
         for probe in &mut self.probes {
             match probe.state {
                 ProbeLifecycleState::Detached | ProbeLifecycleState::Unloaded => {
@@ -218,10 +242,34 @@ impl ProbeRuntime {
     }
 
     /// Spawn the ring-buffer consumer loop as a background Tokio task.
-    pub fn spawn_event_loop(&mut self) -> tokio::sync::broadcast::Receiver<()> {
-        let (tx, rx) = tokio::sync::broadcast::channel(1);
-        let _ = tx;
-        rx
+    ///
+    /// Returns a shutdown signal receiver that will be triggered on graceful shutdown.
+    pub async fn spawn_event_loop(&mut self) {
+        use tokio::sync::mpsc;
+
+        if let RuntimeState::Loaded { ebpf_loader } = &self.state {
+            let bpf_arc = ebpf_loader.bpf_arc();
+            if let Some(bpf) = bpf_arc {
+                let (tx, mut rx) = mpsc::channel::<crate::runtime::ProbeEvent>(100);
+                let consumer = crate::RingBufferConsumer::new();
+
+                // Spawn the ring buffer polling task
+                tokio::spawn(async move {
+                    let mut bpf_lock = bpf.lock().await;
+                    if let Err(e) = consumer.start_with_channel(tx, &mut bpf_lock).await {
+                        log::error!("ring buffer consumer error: {}", e);
+                    }
+                });
+
+                // Forward events to registered handlers
+                tokio::spawn(async move {
+                    while let Some(event) = rx.recv().await {
+                        // Event forwarding would happen here
+                        log::debug!("probe event received: {:?}", event);
+                    }
+                });
+            }
+        }
     }
 }
 

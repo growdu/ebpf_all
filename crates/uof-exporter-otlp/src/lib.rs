@@ -15,8 +15,14 @@
 
 mod config;
 mod exporter;
+mod otlp_client;
 mod telemetry;
 
 pub use config::OtlpConfig;
-pub use exporter::{MetricExporter, SpanExporter, LogExporter, Span, SpanStatus, AttributeValue, OtlpSpanExporter};
+pub use exporter::{
+    MetricExporter, UofSpanExporter, LogExporter, UofSpan, UofLogRecord, SpanStatus,
+    AttributeValue, OtlpSpanExporter, OtlpMetricExporter, OtlpLogExporter,
+    UofSpan as Span,
+};
+pub use otlp_client::OtlpClient;
 pub use telemetry::init_telemetry;

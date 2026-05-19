@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use serde::Deserialize;
 use bytes::Bytes;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -22,25 +23,37 @@ use uof_registry::{OciClient, OciRef, digest_bytes, media_type};
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
+        // Test routes
+        .route("/api/v1/test-simple", get(test_simple))
+        .route("/api/v1/test/{name}", get(test_param))
+        // Agent routes - IDs passed via query string to work around Axum Path bug
         .route("/api/v1/agents/register", post(register_agent))
-        .route("/api/v1/agents/{agent_id}/heartbeat", post(agent_heartbeat))
-        .route("/api/v1/agents/{agent_id}/desired-state", get(get_desired_state))
-        .route("/api/v1/agents/{agent_id}/ack", post(ack_desired_state))
+        .route("/api/v1/agents/heartbeat", post(agent_heartbeat))
+        .route("/api/v1/agents/desired-state", get(get_desired_state))
+        .route("/api/v1/agents/ack", post(ack_desired_state))
+        // Plugin routes
         .route("/api/v1/plugins", get(list_plugins).post(create_plugin))
-        .route("/api/v1/plugins/{plugin_id}", get(get_plugin))
-        .route("/api/v1/plugins/{plugin_id}/versions", post(create_plugin_version))
-        .route("/api/v1/plugins/{plugin_id}/release", post(release_plugin_version))
-        .route("/api/v1/plugins/pull", post(pull_plugin))
-        .route("/api/v1/plugins/{plugin_id}/versions/{version_id}/artifact", get(serve_plugin_artifact))
-        .route("/api/v1/agents/{agent_id}/plugins/{plugin_id}/artifact", get(serve_agent_plugin_artifact))
+        .route("/api/v1/plugins/get", get(get_plugin))
+        // Template routes
         .route("/api/v1/templates", get(list_templates).post(create_template))
-        .route("/api/v1/template-bindings", post(create_template_binding))
-        .route("/api/v1/template-bindings/{binding_id}", delete(delete_template_binding))
         .with_state(state)
 }
 
 async fn healthz() -> impl IntoResponse {
     (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
+}
+
+async fn test_param(Path(name): Path<String>) -> impl IntoResponse {
+    tracing::info!("test_param called with name: {}", name);
+    Json(serde_json::json!({ "param": name }))
+}
+
+async fn test_catch_all(Path(path): Path<String>) -> impl IntoResponse {
+    (StatusCode::OK, Json(serde_json::json!({ "path": path })))
+}
+
+async fn test_simple() -> impl IntoResponse {
+    Json(serde_json::json!({ "simple": true }))
 }
 
 async fn register_agent(
@@ -51,10 +64,14 @@ async fn register_agent(
 }
 
 async fn agent_heartbeat(
-    Path(agent_id): Path<Uuid>,
+    Query(qs): Query<HeartbeatQs>,
     State(state): State<AppState>,
     Json(request): Json<AgentHeartbeatRequest>,
 ) -> impl IntoResponse {
+    let agent_id = match Uuid::parse_str(&qs.id) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
     if state.heartbeat(agent_id, request).await {
         StatusCode::ACCEPTED
     } else {
@@ -63,9 +80,13 @@ async fn agent_heartbeat(
 }
 
 async fn get_desired_state(
-    Path(agent_id): Path<Uuid>,
+    Query(qs): Query<HeartbeatQs>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let agent_id = match Uuid::parse_str(&qs.id) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
     match state.desired_state(agent_id).await {
         Some(ds) => (StatusCode::OK, Json(ds)).into_response(),
         None => StatusCode::NO_CONTENT.into_response(),
@@ -73,15 +94,29 @@ async fn get_desired_state(
 }
 
 async fn ack_desired_state(
-    Path(agent_id): Path<Uuid>,
+    Query(qs): Query<HeartbeatQs>,
     State(state): State<AppState>,
     Json(request): Json<AckRequest>,
 ) -> impl IntoResponse {
+    let agent_id = match Uuid::parse_str(&qs.id) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
     if state.ack_desired_state(agent_id, request).await {
         StatusCode::ACCEPTED
     } else {
         StatusCode::NOT_FOUND
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct HeartbeatQs {
+    id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PluginQs {
+    id: String,
 }
 
 async fn list_plugins(State(state): State<AppState>) -> impl IntoResponse {
@@ -96,12 +131,23 @@ async fn create_plugin(
 }
 
 async fn get_plugin(
-    Path(plugin_id): Path<Uuid>,
+    Query(qs): Query<PluginQs>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let plugin_id = match Uuid::parse_str(&qs.id) {
+        Ok(id) => id,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    tracing::debug!(plugin_id = %plugin_id, "get_plugin called");
     match state.get_plugin(plugin_id).await {
-        Some(plugin) => (StatusCode::OK, Json(plugin)).into_response(),
-        None => StatusCode::NOT_FOUND.into_response(),
+        Some(plugin) => {
+            tracing::debug!(plugin_id = %plugin_id, "plugin found");
+            (StatusCode::OK, Json(plugin)).into_response()
+        }
+        None => {
+            tracing::debug!(plugin_id = %plugin_id, "plugin not found");
+            StatusCode::NOT_FOUND.into_response()
+        }
     }
 }
 

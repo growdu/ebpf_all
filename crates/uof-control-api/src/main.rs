@@ -7,7 +7,18 @@ async fn main() {
     let base_url = std::env::var("CONTROL_PLANE_URL")
         .unwrap_or_else(|_| format!("http://{}", bind_addr));
 
-    let state = AppState::new(base_url);
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost/uof".to_string());
+
+    let pool = uof_control_plane::db::create_pool(&database_url, 10)
+        .await
+        .expect("failed to create database pool");
+
+    uof_control_plane::db::run_migrations(&pool)
+        .await
+        .expect("failed to run migrations");
+
+    let state = AppState::new(pool, base_url).await;
 
     let app = router(state);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();

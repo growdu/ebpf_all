@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UOF — 通用可观测性框架</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #060a0f;
+      --bg-primary: #090d12;
+      --bg-secondary: #0d1219;
+      --bg-tertiary: #141b26;
+      --bg-card: #111827;
+      --bg-card-hover: #1a2433;
+      --bg-elevated: #1c2a3a;
+      --border-subtle: #141e2a;
+      --border-color: #1e2d3d;
+      --border-light: #2a3a4d;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-cyan: #22d3ee;
+      --accent-cyan-bright: #67e8f9;
+      --accent-cyan-dim: rgba(34, 211, 238, 0.12);
+      --accent-cyan-glow: rgba(34, 211, 238, 0.3);
+      --accent-green: #34d399;
+      --accent-green-dim: rgba(52, 211, 153, 0.12);
+      --accent-amber: #fbbf24;
+      --accent-amber-dim: rgba(251, 191, 36, 0.12);
+      --accent-red: #f87171;
+      --accent-red-dim: rgba(248, 113, 113, 0.12);
+      --accent-purple: #a78bfa;
+      --accent-purple-dim: rgba(167, 139, 250, 0.12);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection {
+      background: var(--accent-cyan-dim);
+      color: var(--accent-cyan-bright);
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-light);
+    }
+
+    /* Background Effects */
+    .bg-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-grid {
+      background-image:
+        linear-gradient(var(--border-subtle) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.4;
+      mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 0%, transparent 70%);
+    }
+
+    .bg-glow {
+      background: radial-gradient(ellipse 80% 60% at 80% 10%, var(--accent-cyan-dim) 0%, transparent 50%),
+                  radial-gradient(ellipse 60% 50% at 10% 90%, var(--accent-purple-dim) 0%, transparent 50%);
+      animation: ambientGlow 20s ease-in-out infinite;
+    }
+
+    @keyframes ambientGlow {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
+    }
+
+    /* Layout */
+    .app {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 100;
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0891b2 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px var(--accent-cyan-dim);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .logo-icon::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+      animation: logoShine 4s ease-in-out infinite;
+    }
+
+    @keyframes logoShine {
+      0%, 100% { transform: translateX(-100%) rotate(45deg); }
+      50% { transform: translateX(100%) rotate(45deg); }
+    }
+
+    .logo-icon svg {
+      width: 22px;
+      height: 22px;
+      fill: var(--bg-deep);
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      letter-spacing: -0.5px;
+    }
+
+    .logo-subtitle {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+
+    .nav-group {
+      margin-bottom: 8px;
+    }
+
+    .nav-group-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 8px 24px;
+      margin-bottom: 2px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 24px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-link:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .nav-link.active {
+      background: linear-gradient(90deg, var(--accent-cyan-dim) 0%, transparent 100%);
+      color: var(--accent-cyan);
+      border-left-color: var(--accent-cyan);
+    }
+
+    .nav-link svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .nav-link.active svg {
+      opacity: 1;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      background: var(--accent-cyan);
+      color: var(--bg-deep);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .nav-divider {
+      height: 1px;
+      background: var(--border-subtle);
+      margin: 12px 24px;
+    }
+
+    .sidebar-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-secondary);
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: statusPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-green); }
+      50% { opacity: 0.6; box-shadow: 0 0 16px var(--accent-green); }
+    }
+
+    .status-indicator.warning {
+      background: var(--accent-amber);
+      box-shadow: 0 0 8px var(--accent-amber);
+    }
+
+    /* Main Content */
+    .main {
+      flex: 1;
+      margin-left: 260px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .main-header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: linear-gradient(180deg, var(--bg-primary) 0%, transparent 100%);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+      margin-bottom: 2px;
+    }
+
+    .header-title p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 18px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      border: none;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0891b2 100%);
+      color: var(--bg-deep);
+      box-shadow: 0 4px 16px var(--accent-cyan-dim);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--accent-cyan-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent-cyan);
+    }
+
+    .btn-danger {
+      background: var(--accent-red-dim);
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+    }
+
+    .btn-danger:hover {
+      background: var(--accent-red);
+      color: var(--bg-deep);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 18px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-color);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg), 0 0 30px var(--accent-cyan-dim);
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
+    }
+
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .stat-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .stat-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--accent-cyan);
+    }
+
+    .stat-icon.green svg { fill: var(--accent-green); }
+    .stat-icon.amber svg { fill: var(--accent-amber); }
+    .stat-icon.purple svg { fill: var(--accent-purple); }
+    .stat-icon.red svg { fill: var(--accent-red); }
+
+    .stat-trend {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .stat-trend.up {
+      background: var(--accent-green-dim);
+      color: var(--accent-green);
+    }
+
+    .stat-trend.down {
+      background: var(--accent-red-dim);
+      color: var(--accent-red);
+    }
+
+    .stat-trend svg {
+      width: 10px;
+      height: 10px;
+      fill: currentColor;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -1px;
+    }
+
+    .stat-change {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Content */
+    .content {
+      padding: 24px 32px;
+      flex: 1;
+    }
+
+    /* Section */
+    .section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .section-title svg {
+      width: 18px;
+      height: 18px;
+      fill: var(--accent-cyan);
+    }
+
+    .section-body {
+      padding: 16px 20px;
+    }
+
+    /* Pipeline */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+    }
+
+    .pipeline-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 1;
+    }
+
+    .pipeline-box {
+      width: 100px;
+      height: 70px;
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      position: relative;
+    }
+
+    .pipeline-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-cyan-dim) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .pipeline-box:hover {
+      border-color: var(--accent-cyan);
+      transform: scale(1.06) translateY(-2px);
+      box-shadow: var(--shadow-md), 0 0 20px var(--accent-cyan-dim);
+    }
+
+    .pipeline-box:hover::before {
+      opacity: 1;
+    }
+
+    .pipeline-box.active {
+      border-color: var(--accent-green);
+      box-shadow: 0 0 20px var(--accent-green-dim);
+    }
+
+    .pipeline-box svg {
+      width: 22px;
+      height: 22px;
+      fill: var(--text-muted);
+      transition: fill 0.3s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .pipeline-box:hover svg,
+    .pipeline-box.active svg {
+      fill: var(--accent-cyan);
+    }
+
+    .pipeline-box.active svg {
+      fill: var(--accent-green);
+    }
+
+    .pipeline-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      transition: color 0.3s ease;
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .pipeline-box:hover .pipeline-label {
+      color: var(--text-primary);
+    }
+
+    .pipeline-line {
+      flex: 1;
+      height: 3px;
+      background: var(--border-color);
+      border-radius: 2px;
+      position: relative;
+      margin: 0 6px;
+      overflow: hidden;
+    }
+
+    .pipeline-line::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 25%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+      border-radius: 2px;
+      animation: pipelineFlow 2s ease-in-out infinite;
+    }
+
+    @keyframes pipelineFlow {
+      0% { left: -25%; opacity: 0; }
+      20% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    /* Grid Layout */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+    }
+
+    /* Agent List */
+    .agent-list {
+      list-style: none;
+    }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .agent-item:last-child {
+      border-bottom: none;
+    }
+
+    .agent-item:hover {
+      background: var(--bg-tertiary);
+      margin: 0 -20px;
+      padding-left: 20px;
+      padding-right: 20px;
+      border-radius: 8px;
+    }
+
+    .agent-avatar {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-cyan) 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--bg-deep);
+      flex-shrink: 0;
+    }
+
+    .agent-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .agent-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+    }
+
+    .agent-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .agent-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .agent-meta svg {
+      width: 11px;
+      height: 11px;
+      fill: currentColor;
+      opacity: 0.6;
+    }
+
+    .agent-status {
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .agent-status.running {
+      background: var(--accent-green-dim);
+      color: var(--accent-green);
+    }
+
+    .agent-status.pending {
+      background: var(--accent-amber-dim);
+      color: var(--accent-amber);
+    }
+
+    .agent-status.error {
+      background: var(--accent-red-dim);
+      color: var(--accent-red);
+    }
+
+    .agent-actions {
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .agent-item:hover .agent-actions {
+      opacity: 1;
+    }
+
+    .agent-actions button {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .agent-actions button:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .agent-actions button svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    /* Activity */
+    .activity-list {
+      list-style: none;
+    }
+
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 0;
+      position: relative;
+    }
+
+    .activity-item:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 14px;
+      top: 40px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border-subtle);
+    }
+
+    .activity-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .activity-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .activity-icon.success {
+      background: var(--accent-green-dim);
+    }
+    .activity-icon.success svg { fill: var(--accent-green); }
+
+    .activity-icon.info {
+      background: var(--accent-cyan-dim);
+    }
+    .activity-icon.info svg { fill: var(--accent-cyan); }
+
+    .activity-icon.warning {
+      background: var(--accent-amber-dim);
+    }
+    .activity-icon.warning svg { fill: var(--accent-amber); }
+
+    .activity-icon.purple {
+      background: var(--accent-purple-dim);
+    }
+    .activity-icon.purple svg { fill: var(--accent-purple); }
+
+    .activity-content {
+      flex: 1;
+      padding-top: 4px;
+    }
+
+    .activity-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin-bottom: 3px;
+    }
+
+    .activity-text strong {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .activity-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* Plugin Grid */
+    .plugin-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .plugin-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+
+    .plugin-card:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .plugin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .plugin-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .plugin-version {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      background: var(--accent-cyan-dim);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .plugin-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+
+    .plugin-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .plugin-tag {
+      font-size: 9px;
+      padding: 3px 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    /* Chart */
+    .chart-wrapper {
+      background: var(--bg-tertiary);
+      border-radius: 10px;
+      padding: 16px;
+      height: 180px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 6px;
+      position: relative;
+    }
+
+    .chart-wrapper::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .chart-bar {
+      flex: 1;
+      background: linear-gradient(to top, var(--accent-cyan) 0%, var(--accent-green) 100%);
+      border-radius: 4px 4px 0 0;
+      min-height: 16px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .chart-bar:hover {
+      filter: brightness(1.2);
+      transform: scaleY(1.08);
+      transform-origin: bottom;
+    }
+
+    .chart-bar::after {
+      content: attr(data-value);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    .chart-bar:hover::after {
+      opacity: 1;
+    }
+
+    /* Gauge */
+    .gauge-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .gauge-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .gauge {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 12px;
+    }
+
+    .gauge svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: var(--border-color);
+      stroke-width: 8;
+    }
+
+    .gauge-fill {
+      fill: none;
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s ease;
+    }
+
+    .gauge-value {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-value span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .gauge-value small {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .gauge-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn 0.3s ease;
+      min-width: 280px;
+    }
+
+    .toast.removing {
+      animation: toastOut 0.3s ease forwards;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(100%); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(100%); }
+    }
+
+    .toast-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .toast-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .toast.success .toast-icon {
+      background: var(--accent-green-dim);
+    }
+    .toast.success .toast-icon svg { fill: var(--accent-green); }
+
+    .toast.error .toast-icon {
+      background: var(--accent-red-dim);
+    }
+    .toast.error .toast-icon svg { fill: var(--accent-red); }
+
+    .toast.info .toast-icon {
+      background: var(--accent-cyan-dim);
+    }
+    .toast.info .toast-icon svg { fill: var(--accent-cyan); }
+
+    .toast-message {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .toast-close:hover {
+      color: var(--text-primary);
+    }
+
+    .toast-close svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 480px;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      animation: modalIn 0.3s ease;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .modal-close svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: 60vh;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 13px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px var(--accent-cyan-dim);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    select.form-input {
+      cursor: pointer;
+    }
+
+    /* Real-time indicator */
+    .realtime-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-green-dim);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-green);
+    }
+
+    .realtime-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    /* Footer */
+    .main-footer {
+      padding: 20px 32px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .footer-version {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-secondary);
+    }
+
+    /* View transitions */
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+      animation: viewIn 0.3s ease;
+    }
+
+    @keyframes viewIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Probe Detail */
+    .probe-list {
+      list-style: none;
+    }
+
+    .probe-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .probe-item:last-child {
+      border-bottom: none;
+    }
+
+    .probe-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .probe-status.running {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .probe-status.stopped {
+      background: var(--text-muted);
+    }
+
+    .probe-info {
+      flex: 1;
+    }
+
+    .probe-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .probe-type {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .probe-stats {
+      display: flex;
+      gap: 20px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .probe-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .probe-stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      fill: var(--text-muted);
+      opacity: 0.5;
+      margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    /* Page selector */
+    .page-selector {
+      display: flex;
+      gap: 8px;
+    }
+
+    .page-btn {
+      padding: 6px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-btn:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .page-btn.active {
+      background: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      color: var(--bg-deep);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-layer bg-glow"></div>
+  <div class="bg-layer bg-grid"></div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Deploy Agent Modal -->
+  <div class="modal-overlay" id="deployModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">部署新代理</h3>
+        <button class="modal-close" onclick="closeModal('deployModal')">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">代理名称</label>
+          <input type="text" class="form-input" placeholder="例如: db-prod-03" id="agentName">
+        </div>
+        <div class="form-group">
+          <label class="form-label">IP 地址</label>
+          <input type="text" class="form-input" placeholder="例如: 10.0.1.40" id="agentIP">
+        </div>
+        <div class="form-group">
+          <label class="form-label">操作系统</label>
+          <select class="form-input" id="agentOS">
+            <option value="linux">Linux</option>
+            <option value="windows">Windows (即将支持)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">内核版本</label>
+          <input type="text" class="form-input" placeholder="例如: 6.8.0" id="agentKernel">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('deployModal')">取消</button>
+        <button class="btn btn-primary" onclick="deployAgent()">部署</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <div class="logo-text">UOF</div>
+            <div class="logo-subtitle">通用可观测性框架</div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-group">
+          <div class="nav-group-label">系统概览</div>
+          <a class="nav-link active" data-view="dashboard">
+            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            控制台
+          </a>
+          <a class="nav-link" data-view="agents">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            代理节点
+            <span class="nav-badge">3</span>
+          </a>
+          <a class="nav-link" data-view="probes">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
+            探针列表
+          </a>
+          <a class="nav-link" data-view="plugins">
+            <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+            插件管理
+          </a>
+        </div>
+
+        <div class="nav-divider"></div>
+
+        <div class="nav-group">
+          <div class="nav-group-label">数据管道</div>
+          <a class="nav-link" data-view="pipeline">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            OTLP 导出
+          </a>
+          <a class="nav-link" data-view="events">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+            事件流
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-status">
+          <div class="status-indicator" id="connectionIndicator"></div>
+          <span id="connectionText">控制面已连接</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Dashboard View -->
+      <div class="view active" id="dashboardView">
+        <header class="main-header">
+          <div class="header-top">
+            <div class="header-title">
+              <h1>控制台</h1>
+              <p>实时监控 eBPF 探针和代理节点状态</p>
+            </div>
+            <div class="header-actions">
+              <div class="realtime-badge">
+                <span class="dot"></span>
+                实时
+              </div>
+              <button class="btn btn-secondary" onclick="showModal('deployModal')">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                设置
+              </button>
+              <button class="btn btn-primary" onclick="showModal('deployModal')">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                部署代理
+              </button>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-header">
+                <div class="stat-icon">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                </div>
+                <div class="stat-trend up">
+                  <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                  +1
+                </div>
+              </div>
+              <div class="stat-label">在线代理</div>
+              <div class="stat-value" id="statAgents">3</div>
+              <div class="stat-change">较上周 +1</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <div class="stat-icon green">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                </div>
+                <div class="stat-trend up">
+                  <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                  +4
+                </div>
+              </div>
+              <div class="stat-label">运行探针</div>
+              <div class="stat-value" id="statProbes">12</div>
+              <div class="stat-change">全部 15 个探针</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <div class="stat-icon amber">
+                  <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+                </div>
+                <div class="stat-trend up">
+                  <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                  +2
+                </div>
+              </div>
+              <div class="stat-label">插件数量</div>
+              <div class="stat-value">5</div>
+              <div class="stat-change">4 已安装, 1 可用</div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-header">
+                <div class="stat-icon purple">
+                  <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                </div>
+                <div class="stat-trend down">
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+                  -8%
+                </div>
+              </div>
+              <div class="stat-label">事件/分钟</div>
+              <div class="stat-value" id="statEvents">2.4k</div>
+              <div class="stat-change">最近 5 分钟平均</div>
+            </div>
+          </div>
+        </header>
+
+        <div class="content">
+          <!-- Pipeline Section -->
+          <section class="section">
+            <div class="section-header">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+                事件管道
+              </div>
+              <button class="btn btn-secondary btn-sm">查看详情</button>
+            </div>
+            <div class="section-body">
+              <div class="pipeline">
+                <div class="pipeline-node">
+                  <div class="pipeline-box active">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    <span class="pipeline-label">eBPF 探针</span>
+                  </div>
+                </div>
+                <div class="pipeline-line"></div>
+                <div class="pipeline-node">
+                  <div class="pipeline-box active">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
+                    <span class="pipeline-label">环形缓冲区</span>
+                  </div>
+                </div>
+                <div class="pipeline-line"></div>
+                <div class="pipeline-node">
+                  <div class="pipeline-box">
+                    <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                    <span class="pipeline-label">事件流水线</span>
+                  </div>
+                </div>
+                <div class="pipeline-line"></div>
+                <div class="pipeline-node">
+                  <div class="pipeline-box">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                    <span class="pipeline-label">OTLP 导出</span>
+                  </div>
+                </div>
+                <div class="pipeline-line"></div>
+                <div class="pipeline-node">
+                  <div class="pipeline-box">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                    <span class="pipeline-label">后端存储</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Two Column Grid -->
+          <div class="grid-2">
+            <!-- Agents Panel -->
+            <section class="section">
+              <div class="section-header">
+                <div class="section-title">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                  已注册代理
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="switchView('agents')">查看全部</button>
+              </div>
+              <div class="section-body">
+                <ul class="agent-list" id="agentList">
+                  <li class="agent-item" data-agent="db-prod-01">
+                    <div class="agent-avatar">db</div>
+                    <div class="agent-info">
+                      <div class="agent-name">db-prod-01</div>
+                      <div class="agent-meta">
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          10.0.1.15
+                        </span>
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+                          Linux 6.8
+                        </span>
+                      </div>
+                    </div>
+                    <span class="agent-status running">运行中</span>
+                    <div class="agent-actions">
+                      <button title="查看详情">
+                        <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                  <li class="agent-item" data-agent="web-prod-02">
+                    <div class="agent-avatar">we</div>
+                    <div class="agent-info">
+                      <div class="agent-name">web-prod-02</div>
+                      <div class="agent-meta">
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          10.0.1.22
+                        </span>
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+                          Linux 5.15
+                        </span>
+                      </div>
+                    </div>
+                    <span class="agent-status running">运行中</span>
+                    <div class="agent-actions">
+                      <button title="查看详情">
+                        <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                  <li class="agent-item" data-agent="cache-01">
+                    <div class="agent-avatar">ca</div>
+                    <div class="agent-info">
+                      <div class="agent-name">cache-01</div>
+                      <div class="agent-meta">
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          10.0.1.30
+                        </span>
+                        <span>
+                          <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+                          Linux 6.2
+                        </span>
+                      </div>
+                    </div>
+                    <span class="agent-status pending">等待中</span>
+                    <div class="agent-actions">
+                      <button title="查看详情">
+                        <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            <!-- Activity Panel -->
+            <section class="section">
+              <div class="section-header">
+                <div class="section-title">
+                  <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                  最近活动
+                </div>
+                <button class="btn btn-secondary btn-sm">查看全部</button>
+              </div>
+              <div class="section-body">
+                <ul class="activity-list" id="activityList">
+                  <li class="activity-item">
+                    <div class="activity-icon success">
+                      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <div class="activity-content">
+                      <div class="activity-text"><strong>pg-sql-hook</strong> 探针已挂载到 PQexec</div>
+                      <div class="activity-time">2 分钟前</div>
+                    </div>
+                  </li>
+                  <li class="activity-item">
+                    <div class="activity-icon info">
+                      <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                    </div>
+                    <div class="activity-content">
+                      <div class="activity-text">OTLP 已导出 <strong>1,247 条事件</strong> 到收集器</div>
+                      <div class="activity-time">5 分钟前</div>
+                    </div>
+                  </li>
+                  <li class="activity-item">
+                    <div class="activity-icon purple">
+                      <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+                    </div>
+                    <div class="activity-content">
+                      <div class="activity-text"><strong>postgres-observability</strong> 插件 v0.1.0 已发布</div>
+                      <div class="activity-time">12 分钟前</div>
+                    </div>
+                  </li>
+                  <li class="activity-item">
+                    <div class="activity-icon warning">
+                      <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    </div>
+                    <div class="activity-content">
+                      <div class="activity-text">代理节点 <strong>cache-01</strong> 心跳超时</div>
+                      <div class="activity-time">18 分钟前</div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </section>
+          </div>
+
+          <!-- Plugin Section -->
+          <section class="section">
+            <div class="section-header">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>
+                可用插件
+              </div>
+              <button class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                安装插件
+              </button>
+            </div>
+            <div class="section-body">
+              <div class="plugin-grid">
+                <div class="plugin-card">
+                  <div class="plugin-header">
+                    <span class="plugin-name">postgres-observability</span>
+                    <span class="plugin-version">v0.1.0</span>
+                  </div>
+                  <div class="plugin-desc">PostgreSQL 查询钩子、连接追踪和 SQL 分析</div>
+                  <div class="plugin-tags">
+                    <span class="plugin-tag">uprobe</span>
+                    <span class="plugin-tag">sql</span>
+                    <span class="plugin-tag">postgres</span>
+                  </div>
+                </div>
+                <div class="plugin-card">
+                  <div class="plugin-header">
+                    <span class="plugin-name">nginx-observability</span>
+                    <span class="plugin-version">v0.2.1</span>
+                  </div>
+                  <div class="plugin-desc">HTTP 请求追踪、连接池指标</div>
+                  <div class="plugin-tags">
+                    <span class="plugin-tag">http</span>
+                    <span class="plugin-tag">nginx</span>
+                  </div>
+                </div>
+                <div class="plugin-card">
+                  <div class="plugin-header">
+                    <span class="plugin-name">syscall-monitor</span>
+                    <span class="plugin-version">v1.0.0</span>
+                  </div>
+                  <div class="plugin-desc">系统调用追踪、文件描述符监控</div>
+                  <div class="plugin-tags">
+                    <span class="plugin-tag">syscall</span>
+                    <span class="plugin-tag">tracing</span>
+                  </div>
+                </div>
+                <div class="plugin-card">
+                  <div class="plugin-header">
+                    <span class="plugin-name">redis-observability</span>
+                    <span class="plugin-version">v0.1.2</span>
+                  </div>
+                  <div class="plugin-desc">Redis 命令追踪、内存和延迟指标</div>
+                  <div class="plugin-tags">
+                    <span class="plugin-tag">redis</span>
+                    <span class="plugin-tag">cache</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Chart Section -->
+          <section class="section">
+            <div class="section-header">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                事件吞吐量（最近 60 分钟）
+              </div>
+            </div>
+            <div class="section-body">
+              <div class="chart-wrapper" id="mainChart">
+                <div class="chart-bar" style="height: 45%;" data-value="1.1k"></div>
+                <div class="chart-bar" style="height: 62%;" data-value="1.5k"></div>
+                <div class="chart-bar" style="height: 58%;" data-value="1.4k"></div>
+                <div class="chart-bar" style="height: 71%;" data-value="1.7k"></div>
+                <div class="chart-bar" style="height: 55%;" data-value="1.3k"></div>
+                <div class="chart-bar" style="height: 82%;" data-value="2.0k"></div>
+                <div class="chart-bar" style="height: 68%;" data-value="1.6k"></div>
+                <div class="chart-bar" style="height: 74%;" data-value="1.8k"></div>
+                <div class="chart-bar" style="height: 65%;" data-value="1.6k"></div>
+                <div class="chart-bar" style="height: 78%;" data-value="1.9k"></div>
+                <div class="chart-bar" style="height: 88%;" data-value="2.1k"></div>
+                <div class="chart-bar" style="height: 76%;" data-value="1.8k"></div>
+                <div class="chart-bar" style="height: 70%;" data-value="1.7k"></div>
+                <div class="chart-bar" style="height: 64%;" data-value="1.5k"></div>
+                <div class="chart-bar" style="height: 58%;" data-value="1.4k"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Agents View -->
+      <div class="view" id="agentsView">
+        <header class="main-header">
+          <div class="header-top">
+            <div class="header-title">
+              <h1>代理节点</h1>
+              <p>管理所有已注册的代理节点</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" onclick="showModal('deployModal')">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                部署代理
+              </button>
+            </div>
+          </div>
+        </header>
+        <div class="content">
+          <section class="section">
+            <div class="section-body">
+              <ul class="agent-list" id="fullAgentList">
+                <!-- Same agents as dashboard -->
+              </ul>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Probes View -->
+      <div class="view" id="probesView">
+        <header class="main-header">
+          <div class="header-top">
+            <div class="header-title">
+              <h1>探针列表</h1>
+              <p>查看和管理所有探针</p>
+            </div>
+          </div>
+        </header>
+        <div class="content">
+          <section class="section">
+            <div class="section-header">
+              <div class="section-title">运行中的探针</div>
+            </div>
+            <div class="section-body">
+              <ul class="probe-list">
+                <li class="probe-item">
+                  <div class="probe-status running"></div>
+                  <div class="probe-info">
+                    <div class="probe-name">pg-sql-hook</div>
+                    <div class="probe-type">uprobe • PostgreSQL</div>
+                  </div>
+                  <div class="probe-stats">
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">847</span>
+                      <span>调用/秒</span>
+                    </div>
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">0.3ms</span>
+                      <span>延迟</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="probe-item">
+                  <div class="probe-status running"></div>
+                  <div class="probe-info">
+                    <div class="probe-name">nginx-http-hook</div>
+                    <div class="probe-type">uprobe • Nginx</div>
+                  </div>
+                  <div class="probe-stats">
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">2,341</span>
+                      <span>调用/秒</span>
+                    </div>
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">0.8ms</span>
+                      <span>延迟</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="probe-item">
+                  <div class="probe-status stopped"></div>
+                  <div class="probe-info">
+                    <div class="probe-name">redis-cmd-hook</div>
+                    <div class="probe-type">uprobe • Redis</div>
+                  </div>
+                  <div class="probe-stats">
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">-</span>
+                      <span>调用/秒</span>
+                    </div>
+                    <div class="probe-stat">
+                      <span class="probe-stat-value">-</span>
+                      <span>延迟</span>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="main-footer">
+        <div>UOF — 通用可观测性框架</div>
+        <div class="footer-version">v0.1.0-alpha</div>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // Navigation
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        const viewId = link.dataset.view;
+        if (viewId) {
+          switchView(viewId);
+        }
+      });
+    });
+
+    function switchView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+      document.getElementById(viewId + 'View').classList.add('active');
+      document.querySelector(`[data-view="${viewId}"]`)?.classList.add('active');
+    }
+
+    // Modal
+    function showModal(modalId) {
+      document.getElementById(modalId).classList.add('active');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.remove('active');
+    }
+
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.classList.remove('active');
+        }
+      });
+    });
+
+    // Deploy Agent
+    function deployAgent() {
+      const name = document.getElementById('agentName').value;
+      const ip = document.getElementById('agentIP').value;
+      const os = document.getElementById('agentOS').value;
+      const kernel = document.getElementById('kernel')?.value || '6.8.0';
+
+      if (!name || !ip) {
+        showToast('请填写必填字段', 'error');
+        return;
+      }
+
+      // Add agent to list
+      const agentList = document.getElementById('agentList');
+      const newAgent = document.createElement('li');
+      newAgent.className = 'agent-item';
+      newAgent.dataset.agent = name;
+
+      const prefix = name.substring(0, 2).toLowerCase();
+      newAgent.innerHTML = `
+        <div class="agent-avatar">${prefix}</div>
+        <div class="agent-info">
+          <div class="agent-name">${name}</div>
+          <div class="agent-meta">
+            <span>
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              ${ip}
+            </span>
+            <span>
+              <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+              ${os} ${kernel}
+            </span>
+          </div>
+        </div>
+        <span class="agent-status pending">部署中</span>
+        <div class="agent-actions">
+          <button title="查看详情">
+            <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          </button>
+        </div>
+      `;
+
+      agentList.insertBefore(newAgent, agentList.firstChild);
+
+      // Update stat
+      const statAgents = document.getElementById('statAgents');
+      statAgents.textContent = parseInt(statAgents.textContent) + 1;
+
+      // Add activity
+      addActivity('success', `<strong>${name}</strong> 代理正在部署`);
+
+      // Close modal
+      closeModal('deployModal');
+
+      // Clear form
+      document.getElementById('agentName').value = '';
+      document.getElementById('agentIP').value = '';
+
+      showToast(`代理 ${name} 部署指令已发送`, 'success');
+
+      // Simulate deployment completion
+      setTimeout(() => {
+        const newAgentStatus = newAgent.querySelector('.agent-status');
+        if (newAgentStatus) {
+          newAgentStatus.className = 'agent-status running';
+          newAgentStatus.textContent = '运行中';
+          addActivity('success', `<strong>${name}</strong> 代理部署成功`);
+        }
+      }, 3000);
+    }
+
+    // Toast
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = {
+        success: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        error: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>',
+        info: '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>'
+      };
+
+      toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-message">${message}</div>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('removing');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Add Activity
+    function addActivity(type, message) {
+      const activityList = document.getElementById('activityList');
+      const time = '刚刚';
+
+      const icons = {
+        success: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        info: '<svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>',
+        warning: '<svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+        purple: '<svg viewBox="0 0 24 24"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>'
+      };
+
+      const newActivity = document.createElement('li');
+      newActivity.className = 'activity-item';
+      newActivity.innerHTML = `
+        <div class="activity-icon ${type}">${icons[type]}</div>
+        <div class="activity-content">
+          <div class="activity-text">${message}</div>
+          <div class="activity-time">${time}</div>
+        </div>
+      `;
+
+      activityList.insertBefore(newActivity, activityList.firstChild);
+
+      // Remove after 5 activities
+      while (activityList.children.length > 5) {
+        activityList.lastChild.remove();
+      }
+
+      // Update time for other activities
+      activityList.querySelectorAll('.activity-time').forEach((el, i) => {
+        if (i > 0) {
+          el.textContent = `${(i + 1) * 2} 分钟前`;
+        }
+      });
+    }
+
+    // Simulated real-time updates
+    function simulateDataUpdate() {
+      const eventsPerMin = Math.floor(Math.random() * 1000) + 2000;
+      document.getElementById('statEvents').textContent = (eventsPerMin / 1000).toFixed(1) + 'k';
+
+      // Update chart bar heights
+      const chartBars = document.querySelectorAll('#mainChart .chart-bar');
+      chartBars.forEach(bar => {
+        const newHeight = Math.floor(Math.random() * 50) + 40;
+        bar.style.height = newHeight + '%';
+        bar.dataset.value = (newHeight * 30) + '~';
+      });
+    }
+
+    // Update every 10 seconds
+    setInterval(simulateDataUpdate, 10000);
+
+    // Simulate connection status changes
+    function checkConnection() {
+      const isConnected = Math.random() > 0.05;
+      const indicator = document.getElementById('connectionIndicator');
+      const text = document.getElementById('connectionText');
+
+      if (isConnected) {
+        indicator.classList.remove('warning');
+        text.textContent = '控制面已连接';
+      } else {
+        indicator.classList.add('warning');
+        text.textContent = '连接中断';
+        showToast('控制面连接中断，正在重连...', 'error');
+      }
+    }
+
+    // Check connection every 30 seconds
+    setInterval(checkConnection, 30000);
+
+    // Initialize
+    console.log('UOF Dashboard initialized');
+  </script>
+</body>
+</html>

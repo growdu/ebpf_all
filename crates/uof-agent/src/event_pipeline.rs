@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use uof_exporter_otlp::{OtlpConfig, SpanExporter, OtlpSpanExporter};
+use uof_exporter_otlp::{OtlpConfig, UofSpanExporter, OtlpSpanExporter};
 use uof_probe_runtime::ProbeEvent;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,7 +38,7 @@ pub struct EventPipeline {
     /// Channel to send events for processing
     sender: mpsc::Sender<PipelineEvent>,
     /// OTLP span exporter
-    exporter: Arc<dyn SpanExporter>,
+    exporter: Arc<dyn UofSpanExporter>,
     /// Background task handle
     task: Option<JoinHandle<()>>,
     /// Shutdown signal sender
@@ -48,7 +48,7 @@ pub struct EventPipeline {
 
 impl EventPipeline {
     /// Create a new event pipeline with an OTLP exporter.
-    pub fn new(exporter: Arc<dyn SpanExporter>) -> Self {
+    pub fn new(exporter: Arc<dyn UofSpanExporter>) -> Self {
         let (sender, _) = mpsc::channel(1000);
         Self {
             sender,
@@ -80,7 +80,7 @@ impl EventPipeline {
 
     async fn process_loop(
         mut receiver: mpsc::Receiver<PipelineEvent>,
-        exporter: Arc<dyn SpanExporter>,
+        exporter: Arc<dyn UofSpanExporter>,
         shutdown_rx: tokio::sync::oneshot::Receiver<()>,
     ) {
         let mut batch: Vec<PipelineEvent> = Vec::with_capacity(100);
@@ -110,7 +110,7 @@ impl EventPipeline {
         }
     }
 
-    async fn flush_batch(exporter: &Arc<dyn SpanExporter>, batch: &mut Vec<PipelineEvent>) {
+    async fn flush_batch(exporter: &Arc<dyn UofSpanExporter>, batch: &mut Vec<PipelineEvent>) {
         let spans: Vec<_> = batch.drain(..)
             .filter_map(|e| Self::event_to_span(e))
             .collect();

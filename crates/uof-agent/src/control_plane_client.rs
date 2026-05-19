@@ -70,7 +70,7 @@ impl ControlPlaneClient {
         };
 
         self.http
-            .post(format!("{}/api/v1/agents/{agent_id}/heartbeat", self.base_url))
+            .post(format!("{}/api/v1/agents/heartbeat?id={}", self.base_url, agent_id))
             .json(&request)
             .send()
             .await?
@@ -82,7 +82,7 @@ impl ControlPlaneClient {
     pub async fn fetch_desired_state(&self, agent_id: Uuid) -> anyhow::Result<Option<DesiredState>> {
         let response = self
             .http
-            .get(format!("{}/api/v1/agents/{agent_id}/desired-state", self.base_url))
+            .get(format!("{}/api/v1/agents/desired-state?id={}", self.base_url, agent_id))
             .send()
             .await?;
 
@@ -107,7 +107,7 @@ impl ControlPlaneClient {
         };
 
         self.http
-            .post(format!("{}/api/v1/agents/{agent_id}/ack", self.base_url))
+            .post(format!("{}/api/v1/agents/ack?id={}", self.base_url, agent_id))
             .json(&request)
             .send()
             .await?
@@ -125,8 +125,8 @@ impl ControlPlaneClient {
         version: &str,
     ) -> anyhow::Result<Vec<u8>> {
         let url = format!(
-            "{}/api/v1/agents/{agent_id}/plugins/{plugin_id}/artifact?version={version}",
-            self.base_url
+            "{}/api/v1/agents/{}/plugins/{}/artifact?version={}",
+            self.base_url, agent_id, plugin_id, version
         );
 
         tracing::info!(url, "downloading plugin artifact from control plane");

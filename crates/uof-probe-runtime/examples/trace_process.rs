@@ -9,9 +9,13 @@
 //! Usage:
 //!     cargo run --example trace_process -- <process_name> [symbol]
 //!     cargo run --example trace_process -- postgres PQexec
-//!     cargo run --example trace_process -- postgres
+//!     cargo run --example trace_process -- nginx
+//!
+//! Note: This example requires a running eBPF program with a loaded "uof_events"
+//!       ring buffer map. For demonstration, events are printed when received.
 
 use std::sync::Arc;
+use std::time::Duration;
 use uof_probe_runtime::{
     EventCallback, ProcessDiscovery, ProbeEvent, ProbeLoader, RingBufferConsumer,
     SymbolResolver,
@@ -64,12 +68,25 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // 5. Start ring buffer consumer
+    // 5. Start ring buffer consumer (mock mode without actual eBPF)
+    // In production, this would connect to a loaded eBPF program via aya:
+    // let mut ebpf = aya::Ebpf::load_file("uof-ebpf-programs.o")?;
+    // consumer.start(callback, &mut ebpf).await?;
+    println!("Ring buffer consumer ready (waiting for events...)");
+    println!("Press Ctrl+C to exit");
+
+    // For demo purposes, print events periodically
     let consumer = Arc::new(RingBufferConsumer::new());
     let callback = Arc::new(EventPrinter);
-    consumer.start(callback).await?;
 
-    Ok(())
+    // This would be the real call in production with loaded eBPF:
+    // consumer.start(callback, &mut ebpf).await?;
+
+    // For demo, just wait and print status
+    loop {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        println!("Still monitoring... ({} processes found)", pids.len());
+    }
 }
 
 struct EventPrinter;

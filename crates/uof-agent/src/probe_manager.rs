@@ -285,7 +285,27 @@ impl ProbeManager for InMemoryProbeManager {
 
     async fn enable_probe(&self, probe_id: &str) -> Result<()> {
         let mut runtime = self.runtime.write().await;
-        runtime.transition(probe_id, ProbeLifecycleState::Running)
+        let probes = runtime.list();
+        let probe_state = probes.iter().find(|p| p.probe_id == probe_id).map(|p| p.state);
+        match probe_state {
+            Some(ProbeLifecycleState::Registered) => {
+                runtime.transition(probe_id, ProbeLifecycleState::Loaded)?;
+                runtime.transition(probe_id, ProbeLifecycleState::Attached)?;
+                runtime.transition(probe_id, ProbeLifecycleState::Running)?;
+            }
+            Some(ProbeLifecycleState::Loaded) => {
+                runtime.transition(probe_id, ProbeLifecycleState::Attached)?;
+                runtime.transition(probe_id, ProbeLifecycleState::Running)?;
+            }
+            Some(ProbeLifecycleState::Attached) => {
+                runtime.transition(probe_id, ProbeLifecycleState::Running)?;
+            }
+            Some(ProbeLifecycleState::Running) => {
+                // already running, no-op
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     async fn disable_probe(&self, probe_id: &str) -> Result<()> {

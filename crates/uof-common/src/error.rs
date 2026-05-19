@@ -10,3 +10,9 @@ pub enum UofError {
     Internal(String),
 }
 
+impl From<anyhow::Error> for UofError {
+    fn from(e: anyhow::Error) -> Self {
+        UofError::Internal(e.to_string())
+    }
+}
+
