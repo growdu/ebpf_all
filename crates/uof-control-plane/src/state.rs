@@ -32,35 +32,9 @@ impl AppState {
     pub async fn register_agent(&self, request: AgentRegisterRequest) -> AgentRegisterResponse {
         let agent_id = Uuid::new_v4();
 
-        // Get default plugin for initial desired state
-        let default_plugin: Option<(Uuid, String)> = sqlx::query_as(
-            r#"SELECT id, name FROM plugins ORDER BY created_at LIMIT 1"#
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .ok()
-        .flatten()
-        .map(|(id, name): (Uuid, String)| (id, name));
-
-        let desired_state = DesiredState {
-            generation: 1,
-            plugins: default_plugin
-                .map(|(plugin_id, _)| PluginActivation {
-                    plugin_id,
-                    version: "0.1.0".to_string(),
-                    action: PluginAction::Enable,
-                    artifact_url: None,
-                    artifact_digest: None,
-                })
-                .into_iter()
-                .collect(),
-            templates: vec![],
-            sampling: serde_json::json!({ "profile": "default" }),
-            exporter: serde_json::json!({ "endpoint": "http://otel-collector:4317" }),
-        };
-
         let status = format!("registered:{}", request.hostname);
 
+        // Insert agent
         sqlx::query(
             r#"INSERT INTO agents (id, name, status, desired_state_generation, last_heartbeat_status, acked_generation)
                VALUES ($1, $2, $3, $4, $5, $6)"#
@@ -74,6 +48,45 @@ impl AppState {
         .execute(&self.pool)
         .await
         .ok();
+
+        // Persist initial desired state
+        let desired_state_id = Uuid::new_v4();
+        sqlx::query(
+            r#"INSERT INTO desired_states (id, agent_id, generation, sampling, exporter)
+               VALUES ($1, $2, 1, $3, $4)"#
+        )
+        .bind(desired_state_id)
+        .bind(agent_id)
+        .bind(serde_json::json!({ "profile": "default" }).to_string())
+        .bind(serde_json::json!({ "endpoint": "http://otel-collector:4317" }).to_string())
+        .execute(&self.pool)
+        .await
+        .ok();
+
+        // Get default plugin and create desired state plugin entry
+        let default_plugin: Option<(Uuid, String)> = sqlx::query_as(
+            r#"SELECT id, name FROM plugins ORDER BY created_at LIMIT 1"#
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten()
+        .map(|(id, name): (Uuid, String)| (id, name));
+
+        if let Some((plugin_id, _)) = default_plugin {
+            sqlx::query(
+                r#"INSERT INTO desired_state_plugins (id, desired_state_id, plugin_id, version, action)
+                   VALUES ($1, $2, $3, $4, $5)"#
+            )
+            .bind(Uuid::new_v4())
+            .bind(desired_state_id)
+            .bind(plugin_id)
+            .bind("0.1.0")
+            .bind("enable")
+            .execute(&self.pool)
+            .await
+            .ok();
+        }
 
         tracing::info!(agent_id = %agent_id, "agent registered in database");
 
@@ -107,7 +120,7 @@ impl AppState {
     }
 
     pub async fn desired_state(&self, agent_id: Uuid) -> Option<DesiredState> {
-        let agent: Option<AgentRow> = sqlx::query_as(
+        let agent = sqlx::query_as::<_, AgentRow>(
             r#"SELECT id, name, status, desired_state_generation, last_heartbeat_at,
                       last_heartbeat_status, acked_generation, created_at, updated_at
                FROM agents WHERE id = $1"#
@@ -116,21 +129,92 @@ impl AppState {
         .fetch_optional(&self.pool)
         .await
         .ok()
-        .flatten();
+        .flatten()?;
 
-        agent.and_then(|a| {
-            if a.acked_generation >= a.desired_state_generation {
-                None
-            } else {
-                // TODO: Fetch actual desired_state from separate table
-                Some(DesiredState {
-                    generation: a.desired_state_generation,
-                    plugins: vec![],
-                    templates: vec![],
-                    sampling: serde_json::json!({}),
-                    exporter: serde_json::json!({}),
-                })
-            }
+        // Check if there's a newer generation to deliver
+        if agent.acked_generation >= agent.desired_state_generation {
+            return None;
+        }
+
+        // Fetch desired_state from the desired_states table
+        let ds_row = sqlx::query(
+            r#"SELECT id, generation, sampling, exporter FROM desired_states
+               WHERE agent_id = $1 AND generation = $2"#
+        )
+        .bind(agent_id)
+        .bind(agent.desired_state_generation)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten()?;
+
+        let ds_id: Uuid = ds_row.get("id");
+        let generation: i64 = ds_row.get("generation");
+        let sampling: serde_json::Value = ds_row.get("sampling");
+        let exporter: serde_json::Value = ds_row.get("exporter");
+
+        // Fetch desired state plugins
+        let plugin_rows = sqlx::query(
+            r#"SELECT dsp.plugin_id, dsp.version, dsp.action, dsp.artifact_url, dsp.artifact_digest
+               FROM desired_state_plugins dsp
+               WHERE dsp.desired_state_id = $1"#
+        )
+        .bind(ds_id)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+
+        let plugins: Vec<PluginActivation> = plugin_rows
+            .iter()
+            .map(|row| PluginActivation {
+                plugin_id: row.get("plugin_id"),
+                version: row.get("version"),
+                action: match row.get::<String, _>("action").as_str() {
+                    "install" => PluginAction::Install,
+                    "enable" => PluginAction::Enable,
+                    "disable" => PluginAction::Disable,
+                    "uninstall" => PluginAction::Uninstall,
+                    _ => PluginAction::Enable,
+                },
+                artifact_url: row.get("artifact_url"),
+                artifact_digest: row.get("artifact_digest"),
+            })
+            .collect();
+
+        // Fetch desired state templates
+        let template_rows = sqlx::query(
+            r#"SELECT dst.id, dst.template_id, t.name, t.target_software, t.scenario, t.status,
+                      dst.variables
+               FROM desired_state_templates dst
+               JOIN templates t ON t.id = dst.template_id
+               WHERE dst.desired_state_id = $1"#
+        )
+        .bind(ds_id)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+
+        let templates: Vec<TemplateBinding> = template_rows
+            .iter()
+            .map(|row| TemplateBinding {
+                id: row.get("id"),
+                template_id: row.get("template_id"),
+                selector: serde_json::json!({}),
+                target: serde_json::json!({
+                    "name": row.get::<String, _>("name"),
+                    "software": row.get::<String, _>("target_software")
+                }),
+                policy: serde_json::json!({}),
+                enabled: true,
+            })
+            .collect();
+
+        Some(DesiredState {
+            generation,
+            plugins,
+            templates,
+            sampling,
+            exporter,
         })
     }
 
@@ -322,7 +406,7 @@ impl AppState {
         &self,
         plugin_id: Uuid,
         version_id: Uuid,
-        version_string: String,
+        _version_string: String,
     ) {
         // Bump generation for all agents
         sqlx::query(
