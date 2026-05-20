@@ -13,7 +13,7 @@ pub mod lock {
     /// Lock acquire tracepoint (requires kernel 4.17+).
     /// Captures: lock_id, wait_time for lock contention events.
     #[tracepoint]
-    pub fn handle_lock_acquire(ctx: TracePointContext) -> u32 {
+    pub fn handle_lock_acquire(_ctx: TracePointContext) -> u32 {
         // Lock acquire - tracks mutex/rwlock acquisition
         0
     }
@@ -21,7 +21,7 @@ pub mod lock {
     /// Lock release tracepoint (requires kernel 4.17+).
     /// Captures: lock_id, hold_time for lock usage analysis.
     #[tracepoint]
-    pub fn handle_lock_release(ctx: TracePointContext) -> u32 {
+    pub fn handle_lock_release(_ctx: TracePointContext) -> u32 {
         // Lock release - tracks mutex/rwlock release
         0
     }
@@ -34,7 +34,7 @@ pub mod net {
     /// Network packet receive tracepoint.
     /// Captures: saddr, daddr, sport, dport, len for incoming packets.
     #[tracepoint]
-    pub fn handle_sock_recv(ctx: TracePointContext) -> u32 {
+    pub fn handle_sock_recv(_ctx: TracePointContext) -> u32 {
         // Socket receive - tracks incoming network data
         0
     }
@@ -42,7 +42,7 @@ pub mod net {
     /// Network packet send tracepoint.
     /// Captures: saddr, daddr, sport, dport, len for outgoing packets.
     #[tracepoint]
-    pub fn handle_sock_send(ctx: TracePointContext) -> u32 {
+    pub fn handle_sock_send(_ctx: TracePointContext) -> u32 {
         // Socket send - tracks outgoing network data
         0
     }
