@@ -1,0 +1,23 @@
+[Unit]
+Description=UOF Control Plane - State Management API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=uof
+Group=uof
+ExecStart=/usr/local/bin/uof-control-plane --config /etc/uof/control-plane.toml
+Restart=always
+RestartSec=5
+Environment="RUST_LOG=info"
+Environment="DATABASE_URL=postgresql://uof:uof@localhost:5432/uof"
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/uof /var/log/uof
+
+[Install]
+WantedBy=multi-user.target
