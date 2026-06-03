@@ -389,3 +389,233 @@ impl LogExporter for OtlpLogExporter {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_span_status_ok() {
+        let status = SpanStatus::Ok;
+        match status {
+            SpanStatus::Ok => {},
+            SpanStatus::Error(_) => panic!("expected Ok"),
+        }
+    }
+
+    #[test]
+    fn test_span_status_error() {
+        let status = SpanStatus::Error("test error".to_string());
+        match status {
+            SpanStatus::Ok => panic!("expected Error"),
+            SpanStatus::Error(msg) => assert_eq!(msg, "test error"),
+        }
+    }
+
+    #[test]
+    fn test_attribute_value_string() {
+        let attr = AttributeValue::String("hello".to_string());
+        match attr {
+            AttributeValue::String(s) => assert_eq!(s, "hello"),
+            _ => panic!("expected String"),
+        }
+    }
+
+    #[test]
+    fn test_attribute_value_int() {
+        let attr = AttributeValue::Int(42);
+        match attr {
+            AttributeValue::Int(i) => assert_eq!(i, 42),
+            _ => panic!("expected Int"),
+        }
+    }
+
+    #[test]
+    fn test_attribute_value_double() {
+        let attr = AttributeValue::Double(3.14);
+        match attr {
+            AttributeValue::Double(d) => assert!((d - 3.14).abs() < f64::EPSILON),
+            _ => panic!("expected Double"),
+        }
+    }
+
+    #[test]
+    fn test_attribute_value_bool() {
+        let attr = AttributeValue::Bool(true);
+        match attr {
+            AttributeValue::Bool(b) => assert!(b),
+            _ => panic!("expected Bool"),
+        }
+    }
+
+    #[test]
+    fn test_uof_span_creation() {
+        let span = UofSpan {
+            trace_id: [0u8; 16],
+            span_id: [0u8; 8],
+            parent_span_id: None,
+            name: "test span".to_string(),
+            start_time: Duration::from_secs(0),
+            end_time: Duration::from_secs(1),
+            attributes: vec![
+                ("key1".to_string(), AttributeValue::String("value1".to_string())),
+                ("key2".to_string(), AttributeValue::Int(123)),
+            ],
+            status: SpanStatus::Ok,
+        };
+        assert_eq!(span.name, "test span");
+        assert_eq!(span.attributes.len(), 2);
+    }
+
+    #[test]
+    fn test_metric_counter_data() {
+        let data = MetricData::Counter {
+            value: 100.0,
+            attributes: vec![("service".to_string(), AttributeValue::String("api".to_string()))],
+        };
+        match data {
+            MetricData::Counter { value, attributes } => {
+                assert!((value - 100.0).abs() < f64::EPSILON);
+                assert_eq!(attributes.len(), 1);
+            },
+            _ => panic!("expected Counter"),
+        }
+    }
+
+    #[test]
+    fn test_metric_histogram_data() {
+        let data = MetricData::Histogram {
+            sum: 50.0,
+            count: 10,
+            bounds: vec![0.0, 1.0, 5.0, 10.0],
+            counts: vec![2, 3, 4, 1],
+        };
+        match data {
+            MetricData::Histogram { sum, count, bounds, counts } => {
+                assert!((sum - 50.0).abs() < f64::EPSILON);
+                assert_eq!(count, 10);
+                assert_eq!(bounds.len(), 4);
+                assert_eq!(counts.len(), 4);
+            },
+            _ => panic!("expected Histogram"),
+        }
+    }
+
+    #[test]
+    fn test_metric_gauge_data() {
+        let data = MetricData::Gauge {
+            value: 42.5,
+            attributes: vec![],
+        };
+        match data {
+            MetricData::Gauge { value, attributes } => {
+                assert!((value - 42.5).abs() < f64::EPSILON);
+                assert!(attributes.is_empty());
+            },
+            _ => panic!("expected Gauge"),
+        }
+    }
+
+    #[test]
+    fn test_metric_creation() {
+        let metric = Metric {
+            name: "http_requests".to_string(),
+            description: "Number of HTTP requests".to_string(),
+            unit: "1".to_string(),
+            data: MetricData::Counter { value: 1.0, attributes: vec![] },
+        };
+        assert_eq!(metric.name, "http_requests");
+        assert_eq!(metric.description, "Number of HTTP requests");
+        assert_eq!(metric.unit, "1");
+    }
+
+    #[test]
+    fn test_uof_log_record_creation() {
+        let log = UofLogRecord {
+            timestamp: Duration::from_secs(100),
+            severity: Severity::Info,
+            body: "test log message".to_string(),
+            attributes: vec![
+                ("level".to_string(), AttributeValue::String("info".to_string())),
+            ],
+        };
+        assert_eq!(log.body, "test log message");
+        assert!(matches!(log.severity, Severity::Info));
+    }
+
+    #[test]
+    fn test_severity_levels() {
+        let levels = vec![
+            Severity::Trace,
+            Severity::Debug,
+            Severity::Info,
+            Severity::Warn,
+            Severity::Error,
+            Severity::Fatal,
+        ];
+        for level in levels {
+            let severity = our_severity_to_otel(level);
+            assert!(matches!(severity, opentelemetry::logs::Severity::Trace
+                | opentelemetry::logs::Severity::Debug
+                | opentelemetry::logs::Severity::Info
+                | opentelemetry::logs::Severity::Warn
+                | opentelemetry::logs::Severity::Error
+                | opentelemetry::logs::Severity::Fatal));
+        }
+    }
+
+    #[test]
+    fn test_export_error_creation() {
+        let err = ExportError::new("connection failed");
+        assert_eq!(err.message, "connection failed");
+    }
+
+    #[test]
+    fn test_export_error_display() {
+        let err = ExportError::new("test error");
+        let display = format!("{}", err);
+        assert!(display.contains("test error"));
+    }
+
+    #[test]
+    fn test_otlp_span_exporter_new() {
+        let exporter = OtlpSpanExporter::new("http://localhost:4317".to_string());
+        assert_eq!(exporter.endpoint, "http://localhost:4317");
+        assert_eq!(exporter.timeout, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_otlp_span_exporter_with_timeout() {
+        let exporter = OtlpSpanExporter::new("http://localhost:4317".to_string())
+            .with_timeout(Duration::from_secs(10));
+        assert_eq!(exporter.timeout, Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_otlp_metric_exporter_new() {
+        let exporter = OtlpMetricExporter::new("http://localhost:4317".to_string());
+        assert_eq!(exporter.endpoint, "http://localhost:4317");
+        assert_eq!(exporter.timeout, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_otlp_metric_exporter_with_timeout() {
+        let exporter = OtlpMetricExporter::new("http://localhost:4317".to_string())
+            .with_timeout(Duration::from_secs(15));
+        assert_eq!(exporter.timeout, Duration::from_secs(15));
+    }
+
+    #[test]
+    fn test_otlp_log_exporter_new() {
+        let exporter = OtlpLogExporter::new("http://localhost:4317".to_string());
+        assert_eq!(exporter.endpoint, "http://localhost:4317");
+        assert_eq!(exporter.timeout, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_otlp_log_exporter_with_timeout() {
+        let exporter = OtlpLogExporter::new("http://localhost:4317".to_string())
+            .with_timeout(Duration::from_secs(20));
+        assert_eq!(exporter.timeout, Duration::from_secs(20));
+    }
+}
