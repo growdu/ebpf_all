@@ -9,6 +9,8 @@ use uof_common::{Result, UofError};
 use uof_model::desired_state::{DesiredState, PluginAction};
 use uof_probe_runtime::{ProbeLifecycleState, ProbeRuntime, RegisteredProbe};
 
+use crate::event_pipeline::{EventPipeline, PipelineHandler};
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProbeStatus {
     pub probe_id: String,
@@ -35,6 +37,7 @@ pub struct InMemoryProbeManager {
     runtime: Arc<RwLock<ProbeRuntime>>,
     plugin_index: Arc<RwLock<BTreeMap<String, Vec<String>>>>,
     artifact_dirs: Arc<RwLock<BTreeMap<String, PathBuf>>>,
+    pipeline_initialized: Arc<RwLock<bool>>,
 }
 
 impl InMemoryProbeManager {
@@ -53,7 +56,55 @@ impl InMemoryProbeManager {
             runtime: Arc::new(RwLock::new(runtime)),
             plugin_index: Arc::new(RwLock::new(BTreeMap::new())),
             artifact_dirs: Arc::new(RwLock::new(BTreeMap::new())),
+            pipeline_initialized: Arc::new(RwLock::new(false)),
         }
+    }
+
+    /// Initialize the event pipeline with OTLP export.
+    pub async fn init_event_pipeline(&self, otlp_endpoint: &str) -> Result<()> {
+        use uof_exporter_otlp::OtlpConfig;
+        use tokio::sync::mpsc;
+
+        let config = OtlpConfig::new()
+            .with_endpoint(otlp_endpoint.to_string());
+
+        let (pipeline, sender, receiver) = EventPipeline::with_config(&config)
+            .map_err(|e| anyhow::anyhow!("failed to create event pipeline: {}", e))?;
+
+        // Create a channel to connect handlers to the pipeline
+        let (handler_tx, mut handler_rx) = mpsc::channel::<uof_probe_runtime::ProbeEvent>(100);
+        let sender_clone = sender.clone();
+
+        // Spawn a task that forwards events from handlers to the pipeline
+        tokio::spawn(async move {
+            while let Some(event) = handler_rx.recv().await {
+                let pipeline_event = crate::event_pipeline::PipelineEvent::from_probe_event(event);
+                if sender_clone.send(pipeline_event).await.is_err() {
+                    tracing::info!("handler event channel closed");
+                    break;
+                }
+            }
+        });
+
+        // Create a simple handler that sends to our channel
+        let handler = TestEventHandler { sender: handler_tx };
+        {
+            let mut runtime = self.runtime.write().await;
+            runtime.set_event_handler(handler);
+            // Don't call spawn_event_loop since state is Idle - just keep the handler
+        }
+
+        let mut started_lock = self.pipeline_initialized.write().await;
+        *started_lock = true;
+
+        // Start the pipeline processing loop (pipeline is consumed here)
+        pipeline.start(receiver);
+
+        // Start test event generator to simulate probe events
+        // (real BPF programs will replace this in production)
+        crate::event_pipeline::generate_test_events(sender);
+
+        Ok(())
     }
 
     /// Full lifecycle: verify digest → unpack tar.gz → parse manifest → register probes.
@@ -324,5 +375,18 @@ impl ProbeManager for InMemoryProbeManager {
                 plugin_id: probe.plugin_id,
             })
             .collect())
+    }
+}
+
+/// A simple event handler that forwards events to a channel.
+struct TestEventHandler {
+    sender: tokio::sync::mpsc::Sender<uof_probe_runtime::ProbeEvent>,
+}
+
+impl uof_probe_runtime::EventHandler for TestEventHandler {
+    fn on_event(&self, event: uof_probe_runtime::ProbeEvent) {
+        if self.sender.try_send(event).is_err() {
+            tracing::debug!("event handler channel full, dropping event");
+        }
     }
 }

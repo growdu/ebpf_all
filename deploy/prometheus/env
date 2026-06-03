@@ -1,0 +1,3 @@
+# Prometheus environment config
+PROMETHEUS_DATA_DIR=/home/ubuntu/ebpf_all/deploy/prometheus/data
+PROMETHEUS_WEB_LISTEN=0.0.0.0:9091

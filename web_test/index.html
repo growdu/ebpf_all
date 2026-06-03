@@ -2133,7 +2133,7 @@
 
     // Fetch agents from API
     async function fetchAgents() {
-      const agents = await apiRequest('/api/v1/plugins');
+      const agents = await apiRequest('/api/v1/agents');
       return agents || [];
     }
 

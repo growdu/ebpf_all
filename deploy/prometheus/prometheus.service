@@ -1,0 +1,15 @@
+[Unit]
+Description=Prometheus
+Documentation=https://prometheus.io/docs/
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+EnvironmentFile=/home/ubuntu/ebpf_all/deploy/prometheus/env
+ExecStart=/home/ubuntu/otel/prometheus-3.11.3.linux-amd64/prometheus --config.file=/home/ubuntu/ebpf_all/deploy/prometheus/prometheus.yml --storage.tsdb.path=/home/ubuntu/ebpf_all/deploy/prometheus/data --web.listen-address=0.0.0.0:9091 --web.enable-lifecycle
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+# OTEL Collector environment config
+UOF_OTEL_BIND=0.0.0.0:4317
+PROMETHEUS_BIND=0.0.0.0:8889

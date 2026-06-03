@@ -38,6 +38,12 @@ impl AgentApplication {
             "bootstrapping agent"
         );
 
+        // Initialize event pipeline before enabling probes
+        let otlp_endpoint = "http://127.0.0.1:4317";
+        if let Err(e) = self.probe_manager.init_event_pipeline(otlp_endpoint).await {
+            tracing::warn!(error = %e, "failed to init event pipeline, continuing without OTLP export");
+        }
+
         for probe in &self.config.baseline_probes {
             self.probe_manager.enable_probe(probe).await?;
         }

@@ -1,0 +1,18 @@
+{
+	"ulid": "01KT5PS22HWGSE7XEVSTP480P1",
+	"minTime": 1780444801693,
+	"maxTime": 1780452000000,
+	"stats": {
+		"numSamples": 467040,
+		"numFloatSamples": 467040,
+		"numSeries": 973,
+		"numChunks": 3894
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01KT5PS22HWGSE7XEVSTP480P1"
+		]
+	},
+	"version": 1
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenTelemetry Collector
+Documentation=https://opentelemetry.io/docs/collector/
+After=network.target
+
+[Service]
+Type=exec
+User=ubuntu
+EnvironmentFile=/home/ubuntu/ebpf_all/deploy/otel/env
+ExecStart=/usr/bin/otelcol-contrib --config /home/ubuntu/ebpf_all/deploy/otel/otelcol-config.yaml
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

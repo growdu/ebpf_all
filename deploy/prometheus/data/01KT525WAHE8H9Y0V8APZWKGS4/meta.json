@@ -1,0 +1,18 @@
+{
+	"ulid": "01KT525WAHE8H9Y0V8APZWKGS4",
+	"minTime": 1780423201693,
+	"maxTime": 1780430400000,
+	"stats": {
+		"numSamples": 467040,
+		"numFloatSamples": 467040,
+		"numSeries": 973,
+		"numChunks": 3894
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01KT525WAHE8H9Y0V8APZWKGS4"
+		]
+	},
+	"version": 1
+}

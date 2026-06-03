@@ -43,30 +43,30 @@ pub struct EventPipeline {
     task: Option<JoinHandle<()>>,
     /// Shutdown signal sender
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
-    _receiver_phantom: std::marker::PhantomData<PipelineEvent>,
 }
 
 impl EventPipeline {
     /// Create a new event pipeline with an OTLP exporter.
-    pub fn new(exporter: Arc<dyn UofSpanExporter>) -> Self {
-        let (sender, _) = mpsc::channel(1000);
-        Self {
-            sender,
+    /// Returns (pipeline, sender_for_handler, receiver_for_start)
+    pub fn new(exporter: Arc<dyn UofSpanExporter>) -> (Self, mpsc::Sender<PipelineEvent>, mpsc::Receiver<PipelineEvent>) {
+        let (sender, receiver) = mpsc::channel(1000);
+        let pipeline = Self {
+            sender: sender.clone(),
             exporter,
             task: None,
             shutdown_tx: None,
-            _receiver_phantom: std::marker::PhantomData,
-        }
+        };
+        (pipeline, sender, receiver)
     }
 
     /// Create a new pipeline with default OTLP exporter.
-    pub fn with_config(config: &OtlpConfig) -> Result<Self, PipelineError> {
+    pub fn with_config(config: &OtlpConfig) -> Result<(Self, mpsc::Sender<PipelineEvent>, mpsc::Receiver<PipelineEvent>), PipelineError> {
         let exporter = Arc::new(OtlpSpanExporter::new(config.endpoint.clone()));
         Ok(Self::new(exporter))
     }
 
     /// Start the pipeline processing loop.
-    pub fn start(&mut self, receiver: mpsc::Receiver<PipelineEvent>) {
+    pub fn start(mut self, receiver: mpsc::Receiver<PipelineEvent>) {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         self.shutdown_tx = Some(shutdown_tx);
 
@@ -116,6 +116,7 @@ impl EventPipeline {
             .collect();
 
         if !spans.is_empty() {
+            tracing::info!(count = spans.len(), "exporting spans to OTLP");
             if let Err(e) = exporter.export(spans).await {
                 tracing::error!(error = %e, "failed to export spans");
             }
@@ -253,13 +254,51 @@ impl PipelineHandler {
     }
 }
 
-impl uof_probe_runtime::EventCallback for PipelineHandler {
+impl uof_probe_runtime::EventHandler for PipelineHandler {
     fn on_event(&self, event: ProbeEvent) {
         let pipeline_event = PipelineEvent::from_probe_event(event);
         if let Err(e) = self.sender.try_send(pipeline_event) {
             tracing::warn!(error = %e, "failed to send event to pipeline");
         }
     }
+}
+
+/// Generate simulated probe events for testing the pipeline.
+/// This allows verifying OTLP export without real BPF programs.
+pub fn generate_test_events(sender: mpsc::Sender<PipelineEvent>) {
+    use uof_probe_runtime::ProbeEvent;
+    use std::time::Duration;
+    use tokio::time::sleep;
+
+    tokio::spawn(async move {
+        let mut counter = 0u64;
+        loop {
+            counter += 1;
+
+            // Generate a simulated sched event
+            let event = ProbeEvent::Sched {
+                kind: 0,
+                prev_pid: 1000 + (counter % 100) as u32,
+                next_pid: 1001 + (counter % 100) as u32,
+            };
+
+            let pipeline_event = PipelineEvent::from_probe_event(event);
+            if sender.send(pipeline_event).await.is_err() {
+                tracing::info!("test event generator stopping");
+                break;
+            }
+
+            // Also generate IO events
+            let io_event = ProbeEvent::Io {
+                pid: 2000 + (counter % 50) as u64,
+                latency_ns: (100 + (counter % 1000)) as u32,
+            };
+            let io_pipeline_event = PipelineEvent::from_probe_event(io_event);
+            let _ = sender.send(io_pipeline_event).await;
+
+            sleep(Duration::from_millis(500)).await;
+        }
+    });
 }
 
 #[cfg(test)]

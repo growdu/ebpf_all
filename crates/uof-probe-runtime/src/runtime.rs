@@ -247,6 +247,9 @@ impl ProbeRuntime {
     pub async fn spawn_event_loop(&mut self) {
         use tokio::sync::mpsc;
 
+        // Extract handlers to move into spawned tasks
+        let handlers: Vec<Box<dyn EventHandler>> = self.event_handlers.drain(..).collect();
+
         if let RuntimeState::Loaded { ebpf_loader } = &self.state {
             let bpf_arc = ebpf_loader.bpf_arc();
             if let Some(bpf) = bpf_arc {
@@ -264,8 +267,9 @@ impl ProbeRuntime {
                 // Forward events to registered handlers
                 tokio::spawn(async move {
                     while let Some(event) = rx.recv().await {
-                        // Event forwarding would happen here
-                        log::debug!("probe event received: {:?}", event);
+                        for handler in &handlers {
+                            handler.on_event(event.clone());
+                        }
                     }
                 });
             }
