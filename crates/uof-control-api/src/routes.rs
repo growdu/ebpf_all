@@ -53,10 +53,6 @@ async fn test_param(Path(name): Path<String>) -> impl IntoResponse {
     Json(serde_json::json!({ "param": name }))
 }
 
-async fn test_catch_all(Path(path): Path<String>) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({ "path": path })))
-}
-
 async fn test_simple() -> impl IntoResponse {
     Json(serde_json::json!({ "simple": true }))
 }
@@ -245,144 +241,6 @@ async fn pull_plugin(
     resp
 }
 
-/// GET /api/v1/plugins/{plugin_id}/versions/{version_id}/artifact — admin-facing proxy to OCI.
-async fn serve_plugin_artifact(
-    Path((plugin_id, version_id)): Path<(Uuid, Uuid)>,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    let (registry, repo) = match state.get_version_oci_ref(plugin_id, version_id).await {
-        Some(oci_ref) => parse_oci_ref(&oci_ref),
-        None => {
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "plugin version not found" }))).into_response();
-        }
-    };
-
-    let client = match OciClient::new(&registry) {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(registry = %registry, "failed to create OCI client: {e}");
-            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
-        }
-    };
-
-    tracing::info!(plugin_id = %plugin_id, version_id = %version_id, registry = %registry, repo = %repo, "proxying artifact pull from OCI registry");
-
-    let bytes = match client.pull(&repo, OciRef::parse("latest"), media_type::EBPF_BINARY).await {
-        Ok(b) => b,
-        Err(e) => {
-            tracing::error!(plugin_id = %plugin_id, version_id = %version_id, "OCI proxy pull failed: {e}");
-            let status = if e.is_not_found() { StatusCode::NOT_FOUND } else { StatusCode::BAD_GATEWAY };
-            return (status, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
-        }
-    };
-
-    let digest = digest_bytes(&bytes);
-    tracing::info!(plugin_id = %plugin_id, version_id = %version_id, bytes = bytes.len(), digest = %digest, "artifact proxied successfully");
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        axum::http::header::CONTENT_TYPE,
-        HeaderValue::from_static("application/octet-stream"),
-    );
-    headers.insert(
-        axum::http::header::CONTENT_LENGTH,
-        HeaderValue::from(bytes.len()),
-    );
-    let etag = format!("sha256:{digest}");
-    headers.insert(
-        axum::http::header::ETAG,
-        HeaderValue::from_str(&etag).unwrap_or_else(|_| HeaderValue::from_static("")),
-    );
-
-    let mut resp = axum::response::Response::new(Body::from(Bytes::from(bytes)));
-    *resp.headers_mut() = headers;
-    *resp.status_mut() = StatusCode::OK;
-    resp
-}
-
-/// GET /api/v1/agents/{agent_id}/plugins/{plugin_id}/artifact — agent-facing artifact download.
-async fn serve_agent_plugin_artifact(
-    Path((agent_id, plugin_id)): Path<(Uuid, Uuid)>,
-    State(state): State<AppState>,
-    Query(params): Query<HashMap<String, String>>,
-) -> impl IntoResponse {
-    let version_string = params.get("version").map(|s| s.as_str()).unwrap_or("latest");
-
-    let version_id = match state.find_version_by_string(plugin_id, version_string).await {
-        Some((vid, _)) => vid,
-        None => {
-            tracing::warn!(plugin_id = %plugin_id, version = version_string, "plugin version not found");
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "plugin version not found" }))).into_response();
-        }
-    };
-
-    let (registry, repo) = match state.get_version_oci_ref(plugin_id, version_id).await {
-        Some(oci_ref) => parse_oci_ref(&oci_ref),
-        None => {
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "plugin version not found" }))).into_response();
-        }
-    };
-
-    let client = match OciClient::new(&registry) {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(registry = %registry, "failed to create OCI client: {e}");
-            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
-        }
-    };
-
-    tracing::info!(agent_id = %agent_id, plugin_id = %plugin_id, registry = %registry, repo = %repo, "agent requesting plugin artifact");
-
-    let bytes = match client.pull(&repo, OciRef::parse(version_string), media_type::EBPF_BINARY).await {
-        Ok(b) => b,
-        Err(e) => {
-            tracing::error!(agent_id = %agent_id, plugin_id = %plugin_id, "OCI pull failed: {e}");
-            let status = if e.is_not_found() { StatusCode::NOT_FOUND } else { StatusCode::BAD_GATEWAY };
-            return (status, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
-        }
-    };
-
-    let digest = digest_bytes(&bytes);
-    tracing::info!(agent_id = %agent_id, plugin_id = %plugin_id, bytes = bytes.len(), digest = %digest, "artifact served to agent");
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        axum::http::header::CONTENT_TYPE,
-        HeaderValue::from_static("application/octet-stream"),
-    );
-    headers.insert(
-        axum::http::header::CONTENT_LENGTH,
-        HeaderValue::from(bytes.len()),
-    );
-    let etag = format!("sha256:{digest}");
-    headers.insert(
-        axum::http::header::ETAG,
-        HeaderValue::from_str(&etag).unwrap_or_else(|_| HeaderValue::from_static("")),
-    );
-
-    let mut resp = axum::response::Response::new(Body::from(Bytes::from(bytes)));
-    *resp.headers_mut() = headers;
-    *resp.status_mut() = StatusCode::OK;
-    resp
-}
-
-/// Parse an OCI reference string into (registry, repo) components.
-fn parse_oci_ref(oci_ref: &str) -> (String, String) {
-    let (without_digest, _) = oci_ref.split_once('@').unwrap_or((oci_ref, ""));
-    let (without_tag, _) = without_digest.split_once(':').unwrap_or((without_digest, ""));
-
-    let parts: Vec<&str> = without_tag.split('/').collect();
-    if parts.len() == 1 {
-        ("docker.io".to_string(), oci_ref.to_string())
-    } else if parts[0].contains('.') || parts[0].contains(':') {
-        let registry = parts[0].to_string();
-        let repo = parts[1..].join("/");
-        (registry, repo)
-    } else {
-        ("docker.io".to_string(), oci_ref.to_string())
-    }
-}
-
 async fn list_templates(State(state): State<AppState>) -> impl IntoResponse {
     (StatusCode::OK, Json(state.list_templates().await))
 }
@@ -394,27 +252,7 @@ async fn create_template(
     (StatusCode::CREATED, Json(state.create_template(request).await))
 }
 
-async fn create_template_binding(
-    State(state): State<AppState>,
-    Json(request): Json<CreateTemplateBindingRequest>,
-) -> impl IntoResponse {
-    (StatusCode::CREATED, Json(state.create_template_binding(request).await))
-}
-
-async fn delete_template_binding(
-    Path(binding_id): Path<Uuid>,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    if state.delete_template_binding(binding_id).await {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::NOT_FOUND
-    }
-}
-
-// ============================================================================
-// Metrics endpoints (simulated for demonstration)
-// ============================================================================
+async fn create_template
 
 #[derive(serde::Serialize)]
 struct MetricsSummary {
