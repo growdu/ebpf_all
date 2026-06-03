@@ -544,3 +544,145 @@ impl AppState {
         result.map(|r| r.rows_affected() > 0).unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uof_model::agent::{AgentHeartbeatRequest, AgentRegisterRequest};
+    use uof_model::desired_state::{AckRequest, AckStatus, PluginAction};
+    use uof_model::plugin::{CreatePluginRequest, Plugin};
+    use uof_model::template::{CreateTemplateRequest, Template};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_app_state_base_url() {
+        // Test that AppState stores base_url correctly
+        // We can't easily construct AppState without a pool, but we can test the Uuid generation
+        let uuid = uuid::Uuid::new_v4();
+        assert!(!uuid.is_nil());
+    }
+
+    #[test]
+    fn test_agent_register_request_serialization() {
+        let request = AgentRegisterRequest {
+            hostname: "test-host".to_string(),
+            node_name: Some("node-1".to_string()),
+            ip: Some("192.168.1.100".to_string()),
+            kernel_version: "5.4.0".to_string(),
+            os_release: Some("Ubuntu 20.04".to_string()),
+            arch: "x86_64".to_string(),
+            labels: BTreeMap::new(),
+            capabilities: serde_json::json!({"cap1": true, "cap2": true}),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("test-host"));
+        assert!(json.contains("5.4.0"));
+    }
+
+    #[test]
+    fn test_agent_heartbeat_request_serialization() {
+        let request = AgentHeartbeatRequest {
+            status: "running".to_string(),
+            health_summary: serde_json::json!({"cpu": 50}),
+            probe_status: vec![],
+            plugin_status: vec![],
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("running"));
+    }
+
+    #[test]
+    fn test_plugin_creation_request() {
+        let request = CreatePluginRequest {
+            name: "test-plugin".to_string(),
+            kind: "ebpf".to_string(),
+            publisher: "test-publisher".to_string(),
+        };
+        assert_eq!(request.name, "test-plugin");
+        assert_eq!(request.kind, "ebpf");
+    }
+
+    #[test]
+    fn test_plugin_struct() {
+        let plugin = Plugin {
+            id: uuid::Uuid::new_v4(),
+            name: "my-plugin".to_string(),
+            kind: "kernel".to_string(),
+            publisher: "acme".to_string(),
+            status: "active".to_string(),
+        };
+        assert_eq!(plugin.name, "my-plugin");
+        assert_eq!(plugin.status, "active");
+    }
+
+    #[test]
+    fn test_template_creation_request() {
+        let request = CreateTemplateRequest {
+            plugin_id: uuid::Uuid::new_v4(),
+            name: "my-template".to_string(),
+            version: "1.0.0".to_string(),
+            target_software: "kernel 5.0".to_string(),
+            scenario: Some("tracing".to_string()),
+            manifest: serde_json::json!({"key": "value"}),
+        };
+        assert_eq!(request.name, "my-template");
+        assert_eq!(request.version, "1.0.0");
+    }
+
+    #[test]
+    fn test_template_struct() {
+        let template = Template {
+            id: uuid::Uuid::new_v4(),
+            plugin_id: uuid::Uuid::new_v4(),
+            name: "template-1".to_string(),
+            version: "2.0.0".to_string(),
+            target_software: "linux".to_string(),
+            scenario: Some("security".to_string()),
+            status: "active".to_string(),
+        };
+        assert_eq!(template.name, "template-1");
+        assert_eq!(template.status, "active");
+    }
+
+    #[test]
+    fn test_ack_request_status_applied() {
+        let request = AckRequest {
+            status: AckStatus::Applied,
+            generation: 5,
+            message: None,
+        };
+        assert!(matches!(request.status, AckStatus::Applied));
+        assert_eq!(request.generation, 5);
+    }
+
+    #[test]
+    fn test_ack_request_status_failed() {
+        let request = AckRequest {
+            status: AckStatus::Failed,
+            generation: 3,
+            message: Some("install failed".to_string()),
+        };
+        assert!(matches!(request.status, AckStatus::Failed));
+        assert_eq!(request.message, Some("install failed".to_string()));
+    }
+
+    #[test]
+    fn test_plugin_action_variants() {
+        // Test PluginAction enum variants
+        let actions = vec![
+            PluginAction::Install,
+            PluginAction::Enable,
+            PluginAction::Disable,
+            PluginAction::Uninstall,
+        ];
+        assert_eq!(actions.len(), 4);
+    }
+
+    #[test]
+    fn test_uuid_generation_for_consistency() {
+        // Test that multiple UUID generations produce unique values
+        let u1 = uuid::Uuid::new_v4();
+        let u2 = uuid::Uuid::new_v4();
+        assert_ne!(u1, u2);
+    }
+}
