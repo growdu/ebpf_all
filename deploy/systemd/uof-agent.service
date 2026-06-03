@@ -1,0 +1,21 @@
+[Unit]
+Description=UOF Agent - eBPF Probe Manager
+After=network.target
+
+[Service]
+Type=simple
+User=uof
+Group=uof
+ExecStart=/usr/local/bin/uof-agent --config /etc/uof/agent.toml
+Restart=always
+RestartSec=5
+Environment="RUST_LOG=info"
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/uof /var/log/uof
+
+[Install]
+WantedBy=multi-user.target
