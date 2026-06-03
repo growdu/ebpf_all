@@ -11,6 +11,8 @@ use aya_ebpf::maps::RingBuf;
 static mut RINGBUF: RingBuf = RingBuf::with_byte_size(256 * 1024, 0);
 
 /// Get a reference to the ring buffer map for emitting events.
+#[allow(unused)]
+#[allow(static_mut_refs)]
 pub fn ringbuf() -> &'static RingBuf {
     unsafe { &RINGBUF }
 }

@@ -49,11 +49,13 @@ impl OtlpConfig {
 }
 
 /// Builder for OtlpConfig.
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct Builder {
     config: OtlpConfig,
 }
 
+#[allow(dead_code)]
 impl Builder {
     pub fn new() -> Self {
         Self::default()

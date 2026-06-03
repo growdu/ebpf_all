@@ -9,7 +9,7 @@ use uof_common::{Result, UofError};
 use uof_model::desired_state::{DesiredState, PluginAction};
 use uof_probe_runtime::{ProbeLifecycleState, ProbeRuntime, RegisteredProbe};
 
-use crate::event_pipeline::{EventPipeline, PipelineHandler};
+use crate::event_pipeline::EventPipeline;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ProbeStatus {
