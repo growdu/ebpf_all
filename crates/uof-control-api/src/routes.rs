@@ -8,7 +8,6 @@ use axum::{
 };
 use serde::Deserialize;
 use bytes::Bytes;
-use std::collections::HashMap;
 use uuid::Uuid;
 
 use uof_control_plane::state::AppState;
@@ -16,7 +15,7 @@ use uof_model::{
     agent::{AgentHeartbeatRequest, AgentRegisterRequest},
     desired_state::AckRequest,
     plugin::{CreatePluginRequest, CreatePluginVersionRequest, ReleasePluginRequest},
-    template::{CreateTemplateBindingRequest, CreateTemplateRequest},
+    template::CreateTemplateRequest,
 };
 use uof_registry::{OciClient, OciRef, digest_bytes, media_type};
 
@@ -152,6 +151,7 @@ async fn get_plugin(
     }
 }
 
+#[allow(dead_code)]
 async fn create_plugin_version(
     Path(plugin_id): Path<Uuid>,
     State(state): State<AppState>,
@@ -163,6 +163,7 @@ async fn create_plugin_version(
     }
 }
 
+#[allow(dead_code)]
 async fn release_plugin_version(
     Path(plugin_id): Path<Uuid>,
     State(state): State<AppState>,
@@ -182,6 +183,7 @@ async fn release_plugin_version(
 }
 
 /// POST /api/v1/plugins/pull — admin-facing direct OCI pull.
+#[allow(dead_code)]
 #[derive(serde::Deserialize)]
 struct PullPluginBody {
     registry: String,
@@ -189,6 +191,7 @@ struct PullPluginBody {
     tag: Option<String>,
 }
 
+#[allow(dead_code)]
 async fn pull_plugin(
     State(_state): State<AppState>,
     Json(body): Json<PullPluginBody>,
@@ -251,8 +254,6 @@ async fn create_template(
 ) -> impl IntoResponse {
     (StatusCode::CREATED, Json(state.create_template(request).await))
 }
-
-async fn create_template
 
 #[derive(serde::Serialize)]
 struct MetricsSummary {
