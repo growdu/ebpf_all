@@ -28,26 +28,7 @@ pub mod lock {
     }
 }
 
-pub mod net {
-    use aya_ebpf::macros::tracepoint;
-    use aya_ebpf::programs::TracePointContext;
-
-    /// Network packet receive tracepoint.
-    /// Captures: saddr, daddr, sport, dport, len for incoming packets.
-    #[tracepoint]
-    pub fn handle_sock_recv(_ctx: TracePointContext) -> u32 {
-        // Socket receive - tracks incoming network data
-        0
-    }
-
-    /// Network packet send tracepoint.
-    /// Captures: saddr, daddr, sport, dport, len for outgoing packets.
-    #[tracepoint]
-    pub fn handle_sock_send(_ctx: TracePointContext) -> u32 {
-        // Socket send - tracks outgoing network data
-        0
-    }
-}
+pub mod net;
 
 pub mod uprobe {
     use aya_ebpf::macros::{uprobe, uretprobe};
