@@ -26,6 +26,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/test-simple", get(test_simple))
         .route("/api/v1/test/{name}", get(test_param))
         // Agent routes - IDs passed via query string to work around Axum Path bug
+        .route("/api/v1/agents", get(list_agents))
         .route("/api/v1/agents/register", post(register_agent))
         .route("/api/v1/agents/heartbeat", post(agent_heartbeat))
         .route("/api/v1/agents/desired-state", get(get_desired_state))
@@ -61,6 +62,10 @@ async fn register_agent(
     Json(request): Json<AgentRegisterRequest>,
 ) -> impl IntoResponse {
     (StatusCode::OK, Json(state.register_agent(request).await))
+}
+
+async fn list_agents(State(state): State<AppState>) -> impl IntoResponse {
+    (StatusCode::OK, Json(state.list_agents().await))
 }
 
 async fn agent_heartbeat(

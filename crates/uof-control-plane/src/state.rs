@@ -119,6 +119,17 @@ impl AppState {
         }
     }
 
+    pub async fn list_agents(&self) -> Vec<AgentRow> {
+        sqlx::query_as::<_, AgentRow>(
+            r#"SELECT id, name, status, desired_state_generation, last_heartbeat_at,
+                      last_heartbeat_status, acked_generation, created_at, updated_at
+               FROM agents ORDER BY created_at DESC"#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default()
+    }
+
     pub async fn desired_state(&self, agent_id: Uuid) -> Option<DesiredState> {
         let agent = sqlx::query_as::<_, AgentRow>(
             r#"SELECT id, name, status, desired_state_generation, last_heartbeat_at,
