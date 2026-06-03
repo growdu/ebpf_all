@@ -19,6 +19,14 @@ default-members = [
 ]
 resolver = "2"
 
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3
+lto = true
+
 [workspace.package]
 edition = "2021"
 license = "MIT"
