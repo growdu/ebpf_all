@@ -7,26 +7,7 @@ pub mod sched;
 pub mod syscall;
 pub mod common;
 
-pub mod lock {
-    use aya_ebpf::macros::tracepoint;
-    use aya_ebpf::programs::TracePointContext;
-
-    /// Lock acquire tracepoint (requires kernel 4.17+).
-    /// Captures: lock_id, wait_time for lock contention events.
-    #[tracepoint]
-    pub fn handle_lock_acquire(_ctx: TracePointContext) -> u32 {
-        // Lock acquire - tracks mutex/rwlock acquisition
-        0
-    }
-
-    /// Lock release tracepoint (requires kernel 4.17+).
-    /// Captures: lock_id, hold_time for lock usage analysis.
-    #[tracepoint]
-    pub fn handle_lock_release(_ctx: TracePointContext) -> u32 {
-        // Lock release - tracks mutex/rwlock release
-        0
-    }
-}
+pub mod lock;
 
 pub mod net;
 
