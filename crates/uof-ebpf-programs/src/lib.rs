@@ -5,6 +5,7 @@ pub mod io;
 pub mod maps;
 pub mod sched;
 pub mod syscall;
+pub mod common;
 
 pub mod lock {
     use aya_ebpf::macros::tracepoint;
