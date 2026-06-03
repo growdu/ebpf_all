@@ -10,10 +10,10 @@ use crate::common::{make_header, submit_event};
 /// Network packet receive tracepoint.
 /// Tracepoint: net:netif_receive_skb
 /// Fields: len (offset 0, u32), protocol (offset 4, u16)
-#[tracepoint(target = "net", name = "netif_receive_skb")]
+#[tracepoint(category = "net", name = "netif_receive_skb")]
 pub fn handle_netif_receive_skb(ctx: TracePointContext) -> i64 {
-    let len = unsafe { *ctx.args().add(0) as *const u32 };
-    let protocol = unsafe { *ctx.args().add(4) as *const u16 };
+    let len = unsafe { ctx.read_at(0).unwrap_or(0) };
+    let protocol = unsafe { ctx.read_at(4).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_NET, core::mem::size_of::<NetEvent>() as u32);
     let evt = NetEvent {
@@ -34,10 +34,10 @@ pub fn handle_netif_receive_skb(ctx: TracePointContext) -> i64 {
 /// Network packet send tracepoint.
 /// Tracepoint: net:netif_tx
 /// Fields: len (offset 0, u32), protocol (offset 4, u16)
-#[tracepoint(target = "net", name = "netif_tx")]
+#[tracepoint(category = "net", name = "netif_tx")]
 pub fn handle_netif_tx(ctx: TracePointContext) -> i64 {
-    let len = unsafe { *ctx.args().add(0) as *const u32 };
-    let protocol = unsafe { *ctx.args().add(4) as *const u16 };
+    let len = unsafe { ctx.read_at(0).unwrap_or(0) };
+    let protocol = unsafe { ctx.read_at(4).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_NET, core::mem::size_of::<NetEvent>() as u32);
     let evt = NetEvent {

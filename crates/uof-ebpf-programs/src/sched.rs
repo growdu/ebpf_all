@@ -14,10 +14,10 @@ const KIND_EXIT: u8 = 3;
 /// Scheduler context switch tracepoint.
 /// Tracepoint: sched:sched_switch
 /// Fields: prev_pid (offset 0), prev_state (offset 8), next_pid (offset 16), next_prio (offset 20), next_cpu (offset 24)
-#[tracepoint(target = "sched", name = "sched_switch")]
+#[tracepoint(category = "sched", name = "sched_switch")]
 pub fn handle_sched_switch(ctx: TracePointContext) -> i64 {
-    let prev_pid = unsafe { *ctx.args().add(0) as *const u32 };
-    let next_pid = unsafe { *ctx.args().add(16) as *const u32 };
+    let prev_pid = unsafe { ctx.read_at(0).unwrap_or(0) };
+    let next_pid = unsafe { ctx.read_at(16).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_SCHED, core::mem::size_of::<SchedEvent>() as u32);
     let evt = SchedEvent {
@@ -34,9 +34,9 @@ pub fn handle_sched_switch(ctx: TracePointContext) -> i64 {
 /// Scheduler wakeup tracepoint.
 /// Tracepoint: sched:sched_wakeup
 /// Fields: pid (offset 0), prio (offset 4), success (offset 8), target_cpu (offset 12)
-#[tracepoint(target = "sched", name = "sched_wakeup")]
+#[tracepoint(category = "sched", name = "sched_wakeup")]
 pub fn handle_sched_wakeup(ctx: TracePointContext) -> i64 {
-    let pid = unsafe { *ctx.args().add(0) as *const u32 };
+    let pid = unsafe { ctx.read_at(0).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_SCHED, core::mem::size_of::<SchedEvent>() as u32);
     let evt = SchedEvent {
@@ -53,10 +53,10 @@ pub fn handle_sched_wakeup(ctx: TracePointContext) -> i64 {
 /// Scheduler process fork tracepoint.
 /// Tracepoint: sched:sched_process_fork
 /// Fields: pid (offset 0), child_pid (offset 8), clone_flags (offset 16)
-#[tracepoint(target = "sched", name = "sched_process_fork")]
+#[tracepoint(category = "sched", name = "sched_process_fork")]
 pub fn handle_sched_process_fork(ctx: TracePointContext) -> i64 {
-    let parent_pid = unsafe { *ctx.args().add(0) as *const u32 };
-    let child_pid = unsafe { *ctx.args().add(8) as *const u32 };
+    let parent_pid = unsafe { ctx.read_at(0).unwrap_or(0) };
+    let child_pid = unsafe { ctx.read_at(8).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_SCHED, core::mem::size_of::<SchedEvent>() as u32);
     let evt = SchedEvent {
@@ -73,9 +73,9 @@ pub fn handle_sched_process_fork(ctx: TracePointContext) -> i64 {
 /// Scheduler process exit tracepoint.
 /// Tracepoint: sched:sched_process_exit
 /// Fields: pid (offset 0), exit_code (offset 4), exit_signal (offset 8)
-#[tracepoint(target = "sched", name = "sched_process_exit")]
+#[tracepoint(category = "sched", name = "sched_process_exit")]
 pub fn handle_sched_process_exit(ctx: TracePointContext) -> i64 {
-    let pid = unsafe { *ctx.args().add(0) as *const u32 };
+    let pid = unsafe { ctx.read_at(0).unwrap_or(0) };
 
     let hdr = make_header(EVENT_TYPE_SCHED, core::mem::size_of::<SchedEvent>() as u32);
     let evt = SchedEvent {

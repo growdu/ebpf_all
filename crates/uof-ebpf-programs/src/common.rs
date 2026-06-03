@@ -1,12 +1,12 @@
 //! 通用辅助函数，供所有 eBPF 探针使用
 
-use aya_ebpf::helpers::{bpf_ktime_get_ns, bpf_get_current_pid_tgid, bpf_get_current_uid_gid, bpf_get_smp_processor_id};
+use aya_ebpf::helpers::{bpf_ktime_get_ns, bpf_get_current_pid_tgid};
 
 use crate::event::EventHeader;
 
 /// Get the current process ID from bpf_get_current_pid_tgid.
 pub fn current_pid() -> u32 {
-    bpf_get_current_pid_tgid() >> 32
+    (bpf_get_current_pid_tgid() >> 32) as u32
 }
 
 /// Create an EventHeader with the given event type.
@@ -29,6 +29,5 @@ pub fn make_header(event_type: u16, payload_len: u32) -> EventHeader {
 
 /// Submit an event to the ring buffer.
 pub unsafe fn submit_event<T>(event: &T) {
-    let size = core::mem::size_of::<T>();
-    crate::maps::ringbuf().output(event, 0);
+    let _ = crate::maps::ringbuf().output(event, 0);
 }
