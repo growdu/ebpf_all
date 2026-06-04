@@ -2137,6 +2137,40 @@
       return agents || [];
     }
 
+    // Fetch and display metrics from API
+    async function fetchMetrics() {
+      const metrics = await apiRequest('/api/v1/metrics/summary');
+      if (!metrics) return;
+
+      // Update events per second display
+      const statEvents = document.getElementById('statEvents');
+      if (statEvents) {
+        const eps = metrics.total_events_per_sec || 0;
+        if (eps >= 1000) {
+          statEvents.textContent = (eps / 1000).toFixed(1) + 'k';
+        } else {
+          statEvents.textContent = eps.toFixed(0);
+        }
+      }
+
+      // Update total events stat (using syscall_per_sec as proxy)
+      const statTotalEvents = document.getElementById('statTotalEvents');
+      if (statTotalEvents) {
+        statTotalEvents.textContent = (metrics.total_events_per_sec || 0).toFixed(0);
+      }
+
+      // Update probe count based on metrics
+      const statProbes = document.getElementById('statProbes');
+      if (statProbes) {
+        let probeCount = 0;
+        if (metrics.syscall_per_sec > 0) probeCount++;
+        if (metrics.io_per_sec > 0) probeCount++;
+        if (metrics.sched_per_sec > 0) probeCount++;
+        if (metrics.net_per_sec > 0) probeCount++;
+        statProbes.textContent = probeCount + ' active';
+      }
+    }
+
     // Render agents list from API
     async function renderAgents() {
       const agents = await fetchAgents();
@@ -2366,6 +2400,12 @@
 
     // Initialize
     console.log('UOF Dashboard initialized');
+
+    // Fetch and display metrics
+    fetchMetrics();
+
+    // Refresh metrics every 10 seconds
+    setInterval(fetchMetrics, 10000);
   </script>
 </body>
 </html>
