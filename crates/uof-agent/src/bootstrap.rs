@@ -9,6 +9,7 @@ use crate::{
     admin_api::{self, AdminState},
     config::AgentConfig,
     control_plane_client::ControlPlaneClient,
+    metrics_collector::MetricsCollector,
     probe_manager::{InMemoryProbeManager, ProbeManager},
 };
 
@@ -16,16 +17,19 @@ pub struct AgentApplication {
     config: AgentConfig,
     probe_manager: Arc<InMemoryProbeManager>,
     control_plane_client: ControlPlaneClient,
+    metrics_collector: Arc<MetricsCollector>,
 }
 
 impl AgentApplication {
     pub fn new(config: AgentConfig) -> anyhow::Result<Self> {
         let probe_manager = Arc::new(InMemoryProbeManager::new(&config.baseline_probes));
         let control_plane_client = ControlPlaneClient::new(config.control_plane_endpoint.clone())?;
+        let metrics_collector = Arc::new(MetricsCollector::new());
         Ok(Self {
             config,
             probe_manager,
             control_plane_client,
+            metrics_collector,
         })
     }
 
@@ -92,8 +96,9 @@ impl AgentApplication {
 
         loop {
             let probe_status = self.probe_manager.list_status().await?;
+            let metrics = self.metrics_collector.export_metrics();
             self.control_plane_client
-                .heartbeat(runtime.agent_id, "running", probe_status)
+                .heartbeat(runtime.agent_id, "running", probe_status, metrics)
                 .await?;
 
             if let Some(desired_state) = self

@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use tower_http::cors::{Any, CorsLayer};
 use serde::Deserialize;
 use bytes::Bytes;
 use uuid::Uuid;
@@ -20,6 +21,11 @@ use uof_model::{
 use uof_registry::{OciClient, OciRef, digest_bytes, media_type};
 
 pub fn router(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         .route("/healthz", get(healthz))
         // Test routes
@@ -41,6 +47,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/metrics/syscall", get(get_syscall_metrics))
         .route("/api/v1/metrics/io", get(get_io_metrics))
         .route("/api/v1/metrics/network", get(get_network_metrics))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -271,23 +278,8 @@ struct MetricsSummary {
     timestamp_ms: u64,
 }
 
-async fn get_metrics_summary() -> impl IntoResponse {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-
-    // Simulated metrics (replace with real data from Prometheus query)
-    let summary = MetricsSummary {
-        total_events_per_sec: 12450.0,
-        syscall_per_sec: 8230.0,
-        io_per_sec: 1520.0,
-        network_per_sec: 2700.0,
-        avg_cpu_usage: 23.5,
-        memory_used_mb: 847,
-        timestamp_ms: now,
-    };
-
+async fn get_metrics_summary(State(state): State<AppState>) -> impl IntoResponse {
+    let summary = state.get_metrics_summary(None).await;
     (StatusCode::OK, Json(summary))
 }
 

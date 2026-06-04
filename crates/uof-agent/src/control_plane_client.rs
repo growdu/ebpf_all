@@ -4,7 +4,7 @@ use reqwest::{Client, StatusCode};
 use uuid::Uuid;
 
 use uof_model::{
-    agent::{AgentHeartbeatRequest, AgentRegisterRequest, AgentRegisterResponse},
+    agent::{AgentHeartbeatRequest, AgentRegisterRequest, AgentRegisterResponse, MetricPayload},
     desired_state::{AckRequest, AckStatus, DesiredState},
 };
 
@@ -58,6 +58,7 @@ impl ControlPlaneClient {
         agent_id: Uuid,
         status: &str,
         probe_status: Vec<ProbeStatus>,
+        metrics: Vec<MetricPayload>,
     ) -> anyhow::Result<()> {
         let request = AgentHeartbeatRequest {
             status: status.to_string(),
@@ -67,6 +68,7 @@ impl ControlPlaneClient {
                 .map(|probe| serde_json::json!(probe))
                 .collect(),
             plugin_status: vec![],
+            metrics,
         };
 
         self.http

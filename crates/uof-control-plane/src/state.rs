@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use uof_model::{
-    agent::{AgentHeartbeatRequest, AgentRegisterRequest, AgentRegisterResponse},
+    agent::{AgentHeartbeatRequest, AgentRegisterRequest, AgentRegisterResponse, MetricPayload},
     desired_state::{AckRequest, AckStatus, DesiredState, PluginAction, PluginActivation},
     plugin::{
         CreatePluginRequest, CreatePluginVersionRequest, Plugin, PluginDetail, PluginVersion,
@@ -13,6 +13,60 @@ use uof_model::{
 };
 
 use crate::models::AgentRow;
+
+/// Metrics summary data for API response
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MetricsSummaryData {
+    pub total_events_per_sec: f64,
+    pub syscall_per_sec: f64,
+    pub io_per_sec: f64,
+    pub sched_per_sec: f64,
+    pub net_per_sec: f64,
+    pub syscall_latency_avg_us: f64,
+    pub io_latency_avg_us: f64,
+    pub net_bytes_total: f64,
+    pub timestamp_ms: u64,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct MetricsRow(
+    i64, // syscall_count
+    i64, // io_count
+    i64, // sched_count
+    i64, // net_count
+    i64, // lock_count
+    i64, // syscall_latency_avg (weighted)
+    f64, // io_latency_avg (weighted)
+    i64, // net_bytes_total
+);
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct SyscallMetricsRow {
+    syscall_name: String,
+    count: i64,
+    avg_latency_us: f64,
+    errors: i64,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct IoMetricsRow {
+    device: String,
+    read_ops: i64,
+    write_ops: i64,
+    read_bytes: i64,
+    write_bytes: i64,
+    avg_latency_us: f64,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct NetworkMetricsRow {
+    local_addr: String,
+    remote_addr: String,
+    packets_in: i64,
+    packets_out: i64,
+    bytes_in: i64,
+    bytes_out: i64,
+}
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -110,12 +164,88 @@ impl AppState {
         match result {
             Ok(r) if r.rows_affected() > 0 => {
                 tracing::info!(agent_id = %agent_id, "heartbeat accepted");
+                // Store metrics if provided
+                if !request.metrics.is_empty() {
+                    if let Err(e) = self.store_agent_metrics(agent_id, &request.metrics).await {
+                        tracing::error!(agent_id = %agent_id, error = %e, "failed to store metrics");
+                    }
+                }
                 true
             }
             _ => {
                 tracing::warn!(agent_id = %agent_id, "heartbeat rejected: agent not found");
                 false
             }
+        }
+    }
+
+    pub async fn store_agent_metrics(&self, agent_id: Uuid, metrics: &[MetricPayload]) -> anyhow::Result<()> {
+        for metric in metrics {
+            sqlx::query(
+                r#"INSERT INTO agent_metrics (agent_id, metric_name, metric_type, value, labels, collected_at)
+                   VALUES ($1, $2, $3, $4, $5, to_timestamp($6 / 1000) at time zone 'utc')"#
+            )
+            .bind(agent_id)
+            .bind(&metric.name)
+            .bind(&metric.metric_type)
+            .bind(metric.value)
+            .bind(serde_json::to_value(&metric.labels)?)
+            .bind(metric.collected_at_ms as i64)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn get_metrics_summary(&self, agent_id: Option<Uuid>) -> MetricsSummaryData {
+        let now = chrono::Utc::now();
+        let hour_ago = now - chrono::Duration::hours(1);
+
+        let agent_filter = if agent_id.is_some() { "WHERE agent_id = $1" } else { "" };
+        let param_count = if agent_id.is_some() { 2 } else { 1 };
+
+        // Query aggregated metrics from agent_metrics table directly
+        let rows = sqlx::query_as::<_, (i64, String)>(
+            &format!(
+                r#"SELECT
+                    COUNT(*) as cnt,
+                    metric_name
+                   FROM agent_metrics
+                   WHERE collected_at >= ${} {}
+                   GROUP BY metric_name"#,
+                param_count,
+                agent_filter.replace("WHERE", "AND")
+            ),
+        )
+        .bind(hour_ago)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap_or_default();
+
+        let mut total_events: i64 = 0;
+        let mut syscall_count: i64 = 0;
+        let mut io_count: i64 = 0;
+        let mut sched_count: i64 = 0;
+        let mut net_count: i64 = 0;
+
+        for (cnt, name) in rows {
+            total_events += cnt;
+            match name.as_str() {
+                "probe_events_total" => syscall_count += cnt,
+                _ => {}
+            }
+        }
+
+        MetricsSummaryData {
+            total_events_per_sec: total_events as f64,
+            syscall_per_sec: syscall_count as f64,
+            io_per_sec: io_count as f64,
+            sched_per_sec: sched_count as f64,
+            net_per_sec: net_count as f64,
+            syscall_latency_avg_us: 0.0,
+            io_latency_avg_us: 0.0,
+            net_bytes_total: 0.0,
+            timestamp_ms: now.timestamp_millis() as u64,
         }
     }
 

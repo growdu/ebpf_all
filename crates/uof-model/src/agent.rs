@@ -31,5 +31,17 @@ pub struct AgentHeartbeatRequest {
     pub probe_status: Vec<serde_json::Value>,
     #[serde(default)]
     pub plugin_status: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub metrics: Vec<MetricPayload>,
+}
+
+/// Metric payload from agent metrics collector
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricPayload {
+    pub name: String,
+    pub metric_type: String,
+    pub value: f64,
+    pub labels: BTreeMap<String, String>,
+    pub collected_at_ms: u64,
 }
 
